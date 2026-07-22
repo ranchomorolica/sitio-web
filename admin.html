@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Rancho Morolica</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Bevan&family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--monte:#24402B;--cuero:#6B3F23;--fierro:#C8891A;--hueso:#F3EDDE;--carbon:#1C1A16;--blanco:#FFFDF7;--rojo:#A33B2A;--ok:#2e7d46}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Archivo',sans-serif;background:var(--hueso);color:var(--carbon);padding-bottom:80px}
+.top{background:var(--monte);color:var(--hueso);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
+.top b{font-family:'Bevan',serif;letter-spacing:1px}
+.wrap{max-width:760px;margin:0 auto;padding:18px}
+.tarjeta{background:var(--blanco);border-radius:10px;padding:22px;box-shadow:0 3px 12px rgba(0,0,0,.08);margin-bottom:18px}
+h2{font-family:'Bevan',serif;color:var(--monte);font-size:1.15rem;margin-bottom:14px}
+label{display:block;font-weight:600;font-size:.85rem;margin:12px 0 5px;color:#4c463c}
+input,select,textarea{width:100%;padding:12px;border:2px solid #d5cbb2;border-radius:8px;font-family:'Archivo',sans-serif;font-size:1rem;background:#fff}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
+.fila{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{width:100%;padding:14px;border:none;border-radius:8px;font-weight:800;font-size:1rem;cursor:pointer;margin-top:16px;font-family:'Archivo',sans-serif;letter-spacing:.5px}
+.btn-v{background:var(--monte);color:#fff}
+.btn-f{background:var(--fierro);color:var(--carbon)}
+.btn-chico{width:auto;padding:8px 14px;font-size:.8rem;margin:0}
+.btn-rojo{background:var(--rojo);color:#fff}
+.btn-gris{background:#e4dcc6;color:var(--carbon)}
+.msg{padding:12px;border-radius:8px;margin-top:12px;font-size:.9rem;display:none}
+.msg.ok{background:#dff2e4;color:var(--ok);display:block}
+.msg.err{background:#fde3dd;color:var(--rojo);display:block}
+.lista-item{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px dashed #d5cbb2}
+.lista-item img,.mini{width:64px;height:64px;object-fit:cover;border-radius:8px;background:#d8d0bd;flex-shrink:0}
+.mini{display:flex;align-items:center;justify-content:center;font-family:'Bevan',serif;color:#a89b7d}
+.li-info{flex:1;font-size:.88rem;min-width:0}
+.li-info b{display:block;color:var(--monte)}
+.li-acciones{display:flex;flex-direction:column;gap:6px}
+.pill{font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:4px;display:inline-block}
+.pill.pub{background:#dff2e4;color:var(--ok)}
+.pill.oculto{background:#eee;color:#777}
+.pill.vend{background:#fde3dd;color:var(--rojo)}
+#foto-prev{width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-top:8px;display:none}
+.oculto-sec{display:none}
+</style>
+</head>
+<body>
+<div class="top"><b>RM · Panel</b><button class="btn btn-chico btn-gris" id="btn-salir" style="display:none">Salir</button></div>
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <div class="tarjeta" id="sec-login">
+    <h2>Iniciar sesión</h2>
+    <label>Correo</label><input id="log-email" type="email" autocomplete="email">
+    <label>Contraseña</label><input id="log-pass" type="password" autocomplete="current-password">
+    <button class="btn btn-v" id="btn-entrar">Entrar</button>
+    <div class="msg" id="log-msg"></div>
+  </div>
+
+  <!-- FORMULARIO ANIMAL -->
+  <div class="tarjeta oculto-sec" id="sec-form">
+    <h2 id="form-titulo">Agregar animal</h2>
+    <input type="hidden" id="a-id">
+    <div class="fila">
+      <div><label>Lote *</label><input id="a-lote" placeholder="A-01"></div>
+      <div><label>Categoría *</label>
+        <select id="a-cat">
+          <option>Toro</option><option>Vaca parida</option><option>Vaca preñada</option>
+          <option>Vaquilla</option><option>Novillo</option><option>Ternero</option><option>Ternera</option>
+        </select>
+      </div>
+    </div>
+    <label>Nombre / descripción corta</label><input id="a-nombre" placeholder="Toro Brahman blanco">
+    <div class="fila">
+      <div><label>Peso (kg) *</label><input id="a-peso" type="number" inputmode="numeric"></div>
+      <div><label>Edad (meses)</label><input id="a-edad" type="number" inputmode="numeric"></div>
+    </div>
+    <div class="fila">
+      <div><label>Precio (Lempiras)</label><input id="a-precio" type="number" inputmode="numeric" placeholder="Vacío = Consultar"></div>
+      <div><label>Estado</label><input id="a-estado" placeholder="Preñada 7 meses / Para pesas…"></div>
+    </div>
+    <label>Foto (desde el teléfono)</label>
+    <input id="a-foto" type="file" accept="image/*">
+    <img id="foto-prev" alt="Vista previa">
+    <div class="fila">
+      <div><label><input type="checkbox" id="a-pub" checked style="width:auto;margin-right:6px">Publicado en la web</label></div>
+      <div><label><input type="checkbox" id="a-vendido" style="width:auto;margin-right:6px">Marcado como vendido</label></div>
+    </div>
+    <button class="btn btn-v" id="btn-guardar">Guardar animal</button>
+    <button class="btn btn-gris" id="btn-cancelar" style="display:none">Cancelar edición</button>
+    <div class="msg" id="form-msg"></div>
+  </div>
+
+  <!-- SUBASTA -->
+  <div class="tarjeta oculto-sec" id="sec-subasta">
+    <h2>Próxima subasta en línea</h2>
+    <input type="hidden" id="s-id">
+    <label>Nombre</label><input id="s-nombre" placeholder="Subasta en línea — Agosto 2026">
+    <label>Fecha y hora</label><input id="s-fecha" type="datetime-local">
+    <label>Descripción (link de Facebook Live, detalles)</label><textarea id="s-desc" rows="2"></textarea>
+    <label><input type="checkbox" id="s-activa" checked style="width:auto;margin-right:6px">Mostrar en la página</label>
+    <button class="btn btn-f" id="btn-subasta">Guardar subasta</button>
+    <div class="msg" id="s-msg"></div>
+  </div>
+
+  <!-- INVENTARIO -->
+  <div class="tarjeta oculto-sec" id="sec-lista">
+    <h2>Inventario publicado (<span id="total">0</span>)</h2>
+    <div id="lista"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+/* ===== MISMA CONFIGURACIÓN QUE index.html ===== */
+const CONFIG = {
+  SUPABASE_URL: "https://kjcvlgfgqvwfjgcsqbhu.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_mKwvZz9rw4n0f30RBqbGFw_dwBBqSdw"
+};
+/* ============================================== */
+
+const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const $ = s => document.querySelector(s);
+const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
+
+async function sesion(){
+  const {data:{session}} = await db.auth.getSession();
+  const dentro = !!session;
+  $("#sec-login").style.display = dentro ? "none" : "block";
+  ["#sec-form","#sec-subasta","#sec-lista"].forEach(s=>$(s).style.display = dentro ? "block" : "none");
+  $("#btn-salir").style.display = dentro ? "block" : "none";
+  if(dentro){ listar(); cargarSubasta(); }
+}
+
+$("#btn-entrar").onclick = async () => {
+  const {error} = await db.auth.signInWithPassword({email:$("#log-email").value.trim(), password:$("#log-pass").value});
+  if(error) return msg("#log-msg","Correo o contraseña incorrectos.","err");
+  sesion();
+};
+$("#btn-salir").onclick = async () => { await db.auth.signOut(); sesion(); };
+
+$("#a-foto").onchange = e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  $("#foto-prev").src = URL.createObjectURL(f);
+  $("#foto-prev").style.display = "block";
+};
+
+async function subirFoto(archivo, lote){
+  const ext = archivo.name.split(".").pop() || "jpg";
+  const ruta = `${Date.now()}-${lote.replace(/[^a-zA-Z0-9-]/g,"")}.${ext}`;
+  const {error} = await db.storage.from("ganado-fotos").upload(ruta, archivo, {upsert:true});
+  if(error) throw error;
+  return db.storage.from("ganado-fotos").getPublicUrl(ruta).data.publicUrl;
+}
+
+$("#btn-guardar").onclick = async () => {
+  const lote = $("#a-lote").value.trim();
+  const peso = Number($("#a-peso").value);
+  if(!lote || !peso) return msg("#form-msg","Lote y peso son obligatorios.","err");
+  $("#btn-guardar").disabled = true; $("#btn-guardar").textContent = "Guardando…";
+  try{
+    const reg = {
+      lote, categoria: $("#a-cat").value, nombre: $("#a-nombre").value.trim(),
+      peso_kg: peso, edad_meses: Number($("#a-edad").value) || null,
+      precio_lps: Number($("#a-precio").value) || null,
+      estado: $("#a-estado").value.trim(),
+      publicado: $("#a-pub").checked, vendido: $("#a-vendido").checked
+    };
+    const archivo = $("#a-foto").files[0];
+    if(archivo) reg.foto_url = await subirFoto(archivo, lote);
+    const id = $("#a-id").value;
+    const q = id ? db.from("ganado_web").update(reg).eq("id", id)
+                 : db.from("ganado_web").insert(reg);
+    const {error} = await q;
+    if(error) throw error;
+    msg("#form-msg", id ? "Animal actualizado." : "Animal agregado al catálogo.","ok");
+    limpiar(); listar();
+  }catch(e){ msg("#form-msg","Error: "+e.message,"err"); }
+  $("#btn-guardar").disabled = false; $("#btn-guardar").textContent = "Guardar animal";
+};
+
+function limpiar(){
+  ["a-id","a-lote","a-nombre","a-peso","a-edad","a-precio","a-estado"].forEach(i=>$("#"+i).value="");
+  $("#a-foto").value=""; $("#foto-prev").style.display="none";
+  $("#a-pub").checked = true; $("#a-vendido").checked = false;
+  $("#form-titulo").textContent = "Agregar animal";
+  $("#btn-cancelar").style.display = "none";
+}
+$("#btn-cancelar").onclick = limpiar;
+
+async function listar(){
+  const {data, error} = await db.from("ganado_web").select("*").order("created_at",{ascending:false});
+  if(error) return;
+  $("#total").textContent = data.length;
+  $("#lista").innerHTML = data.map(a => `
+    <div class="lista-item">
+      ${a.foto_url ? `<img src="${a.foto_url}" alt="">` : `<div class="mini">RM</div>`}
+      <div class="li-info">
+        <b>Lote ${a.lote} · ${a.categoria}</b>
+        ${a.peso_kg} kg · ${a.precio_lps ? "L "+Number(a.precio_lps).toLocaleString("es-HN") : "Consultar"}<br>
+        <span class="pill ${a.publicado?'pub':'oculto'}">${a.publicado?'Publicado':'Oculto'}</span>
+        ${a.vendido?'<span class="pill vend">Vendido</span>':''}
+      </div>
+      <div class="li-acciones">
+        <button class="btn btn-chico btn-gris" onclick="editar('${a.id}')">Editar</button>
+        <button class="btn btn-chico btn-rojo" onclick="borrar('${a.id}','${a.lote}')">Borrar</button>
+      </div>
+    </div>`).join("") || "<p style='color:#7a7263'>Aún no hay animales. Agregue el primero arriba.</p>";
+  window._datos = data;
+}
+
+window.editar = id => {
+  const a = window._datos.find(x=>x.id===id);
+  if(!a) return;
+  $("#a-id").value=a.id; $("#a-lote").value=a.lote; $("#a-cat").value=a.categoria;
+  $("#a-nombre").value=a.nombre||""; $("#a-peso").value=a.peso_kg; $("#a-edad").value=a.edad_meses||"";
+  $("#a-precio").value=a.precio_lps||""; $("#a-estado").value=a.estado||"";
+  $("#a-pub").checked=a.publicado; $("#a-vendido").checked=a.vendido;
+  if(a.foto_url){ $("#foto-prev").src=a.foto_url; $("#foto-prev").style.display="block"; }
+  $("#form-titulo").textContent = "Editando lote " + a.lote;
+  $("#btn-cancelar").style.display = "block";
+  window.scrollTo({top:0, behavior:"smooth"});
+};
+
+window.borrar = async (id, lote) => {
+  if(!confirm(`¿Borrar el lote ${lote}? Esta acción no se puede deshacer.`)) return;
+  const {error} = await db.from("ganado_web").delete().eq("id", id);
+  if(!error) listar();
+};
+
+async function cargarSubasta(){
+  const {data} = await db.from("subastas_web").select("*").order("fecha",{ascending:false}).limit(1);
+  if(data && data.length){
+    const s = data[0];
+    $("#s-id").value=s.id; $("#s-nombre").value=s.nombre;
+    $("#s-fecha").value = s.fecha ? new Date(new Date(s.fecha).getTime()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16) : "";
+    $("#s-desc").value=s.descripcion||""; $("#s-activa").checked=s.activa;
+  }
+}
+
+$("#btn-subasta").onclick = async () => {
+  const reg = {
+    nombre: $("#s-nombre").value.trim(),
+    fecha: $("#s-fecha").value ? new Date($("#s-fecha").value).toISOString() : null,
+    descripcion: $("#s-desc").value.trim(),
+    activa: $("#s-activa").checked
+  };
+  if(!reg.nombre || !reg.fecha) return msg("#s-msg","Nombre y fecha son obligatorios.","err");
+  const id = $("#s-id").value;
+  const q = id ? db.from("subastas_web").update(reg).eq("id", id) : db.from("subastas_web").insert(reg);
+  const {error} = await q;
+  msg("#s-msg", error ? "Error: "+error.message : "Subasta guardada. Ya aparece en la página.", error ? "err" : "ok");
+};
+
+sesion();
+</script>
+</body>
+</html>
