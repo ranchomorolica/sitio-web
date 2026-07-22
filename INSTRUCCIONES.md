@@ -18,7 +18,14 @@
 1. Entre a **supabase.com** → su proyecto (kjcvlgfgqvwfjgcsqbhu).
 2. Menú **SQL Editor** → **New query** → pegue TODO el contenido de `setup.sql` → **Run**. Debe decir "Success".
 3. Menú **Authentication → Users → Add user**: cree su usuario admin con su correo y una contraseña fuerte (guárdela en Apple Passwords). Con ese correo entrará al panel.
-4. Menú **Settings → API**: copie la **anon public key** (una clave larga que empieza con `eyJ...`).
+4. Vuelva al **SQL Editor** y ejecute esto (cambiando el correo por el suyo), para marcarlo como administrador:
+   ```sql
+   update public.perfiles set es_admin = true
+   where id = (select id from auth.users where email = 'su-correo@ejemplo.com');
+   ```
+   ⚠️ Sin este paso su usuario entra a `admin.html` pero no puede guardar nada — es la protección que impide que un comprador que se registre solo desde la página termine con permisos de administrador.
+5. Menú **Authentication → Settings**: si quiere que los compradores puedan pujar inmediatamente después de registrarse (recomendado para el día de la subasta), desactive "Confirm email". Si lo deja activado, cada comprador debe confirmar su correo antes de poder pujar.
+6. Menú **Settings → API**: copie la **anon public key** (una clave larga que empieza con `eyJ...`).
 
 ## PASO 2 — Configurar los archivos (5 min)
 
@@ -61,9 +68,26 @@ Abra `index.html` y `admin.html` y busque la sección `CONFIG` (está al inicio 
 - **Se vendió**: Editar → marque "Vendido" (sale con sello VENDIDO) o desmarque "Publicado" (desaparece).
 - **Subasta en línea**: en el panel, sección "Próxima subasta": ponga nombre, fecha y el link del Facebook Live. La página muestra automáticamente la cuenta regresiva.
 
-## Fases siguientes (cuando la Fase 1 esté rodando)
+## Cómo funciona la subasta EN VIVO con pujas reales
+
+Esto reemplaza la puja por WhatsApp: los compradores pujan directo en la página y el precio sube solo, en tiempo real, para todos los que estén viendo.
+
+1. **Antes del día**: en `/admin.html`, guarde la subasta (nombre, fecha, descripción). Luego, en "Lotes de la subasta en vivo", agregue cada animal que va a rematar, en orden, con su precio de salida y el incremento mínimo de puja (ej. L 500).
+2. **El día de la subasta**: cuando va a rematar un animal, presione **"Poner en vivo"** en ese lote. Automáticamente aparece en la página principal con foto, precio y un botón para pujar — solo puede haber un lote en vivo a la vez.
+3. **Los compradores**: entran a la página, se registran una sola vez (nombre, WhatsApp, correo, contraseña) y ya pueden pujar con un botón. El precio y quién va ganando se actualizan solos, para todos, sin recargar la página.
+4. **Cuando se cierra la puja**: presione **"Vendido"** (queda registrado el comprador ganador y el monto final) o **"Cerrar sin venta"** si no hubo comprador. Pase al siguiente lote.
+5. **Compradores registrados**: en el panel, sección "Compradores registrados", puede ver a todos los que se han registrado y **bloquear** a alguien si es necesario (por ejemplo, pujas de broma) — un comprador bloqueado no puede pujar más.
+
+La transmisión de Facebook Live sigue siendo importante: la gente ve el animal en persona, en báscula, y puja aquí mientras lo ve.
+
+## Pendiente: el dominio
+
+Esto quedó fuera de este cambio porque comprar un dominio requiere su tarjeta y sus datos personales en el registrador — no es algo que se pueda automatizar. Cuando esté listo, siga el **Paso 4** de este documento (comprar en Namecheap / nic.hn y conectarlo en Vercel → Settings → Domains).
+
+## Fases siguientes
 
 - **Fase 2**: registro de vendedores terceros con su comisión del 4% — se agrega un formulario de vendedor y aprobación desde su panel.
-- **Fase 3**: pujas en tiempo real dentro de la página (Supabase Realtime, que su ERP ya usa) en lugar de WhatsApp, y la app instalable (PWA).
+- ~~Fase 3: pujas en tiempo real~~ — ya está integrada arriba.
+- **Fase 4**: app instalable (PWA) para que los compradores reciban notificación cuando empieza un lote nuevo.
 
 Soli Deo Gloria 🐂

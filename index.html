@@ -155,6 +155,41 @@ section{padding:64px 0}
 .prox-subasta{background:rgba(28,26,22,.4);border-left:4px solid var(--fierro);padding:16px 20px;border-radius:0 8px 8px 0;margin-top:30px}
 .prox-subasta b{color:var(--fierro)}
 
+/* ===== SUBASTA EN VIVO (pujas reales) ===== */
+.vivo-widget{background:var(--blanco);color:var(--carbon);border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.3);border:3px solid var(--fierro);margin-bottom:34px}
+.vivo-top{background:var(--rojo);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 18px;font-weight:800;font-size:.82rem;letter-spacing:1.5px;text-transform:uppercase}
+.vivo-top .punto{width:9px;height:9px;border-radius:50%;background:#fff;animation:pulso 1.2s infinite;flex-shrink:0}
+.vivo-body{display:grid;grid-template-columns:230px 1fr;gap:0}
+@media(max-width:660px){.vivo-body{grid-template-columns:1fr}}
+.vivo-foto{position:relative;background:#d8d0bd;aspect-ratio:4/3}
+.vivo-foto img{width:100%;height:100%;object-fit:cover}
+.vivo-foto-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Bevan',serif;color:#a89b7d;font-size:2.6rem}
+.vivo-info{padding:22px 24px}
+.vivo-info h3{color:var(--monte);font-size:1.3rem;margin-bottom:8px}
+.vivo-specs{display:flex;gap:16px;flex-wrap:wrap;font-size:.86rem;color:#4c463c;margin-bottom:14px}
+.vivo-specs b{color:var(--carbon)}
+.vivo-precio{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+.vivo-precio span{font-size:.78rem;text-transform:uppercase;letter-spacing:1px;color:#7a7263}
+.vivo-precio b{font-family:'Bevan',serif;font-size:2.2rem;color:var(--cuero)}
+.vivo-ganador{font-size:.85rem;color:var(--monte);font-weight:600;margin-bottom:16px;min-height:1.2em}
+.vivo-accion{border-top:1px dashed #c9bfa6;padding-top:16px}
+.btn-pujar{background:var(--rojo);color:#fff;font-size:1.05rem;padding:14px 26px;width:100%;justify-content:center}
+.btn-pujar:disabled{opacity:.55;cursor:not-allowed}
+.puja-msg{margin-top:10px;font-size:.85rem}
+.puja-msg.err{color:var(--rojo)}
+.puja-msg.ok{color:#2e7d46}
+.pujando-como{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;color:#5c554a;margin-bottom:12px}
+.pujando-como button{background:none;border:none;color:var(--cuero);text-decoration:underline;cursor:pointer;font-size:.85rem;padding:0}
+.historial{margin-top:16px;max-height:150px;overflow-y:auto;font-size:.83rem}
+.historial div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #e4dcc6}
+.historial b{color:var(--monte)}
+.auth-box{max-width:380px}
+.auth-tabs{display:flex;gap:8px;margin-bottom:12px}
+.auth-tabs button{flex:1;padding:9px;border:2px solid var(--cuero);background:transparent;color:var(--cuero);border-radius:6px;font-weight:700;font-size:.78rem;cursor:pointer;font-family:'Archivo',sans-serif;text-transform:uppercase;letter-spacing:.5px}
+.auth-tabs button.on{background:var(--cuero);color:#fff}
+.auth-box input{width:100%;padding:11px 13px;border:2px solid #d5cbb2;border-radius:6px;margin-bottom:9px;font-family:'Archivo',sans-serif;font-size:.92rem}
+.auth-box .btn{width:100%;justify-content:center;padding:12px}
+
 /* ===== VENDE / CITA ===== */
 .dos-col{display:grid;grid-template-columns:1fr 1fr;gap:28px}
 @media(max-width:760px){.dos-col{grid-template-columns:1fr}}
@@ -255,12 +290,31 @@ footer a:hover{color:var(--fierro)}
   <div class="wrap">
     <div class="sec-head">
       <h2 class="display">Subastas en línea, en vivo</h2>
-      <p>Participe desde cualquier parte del mundo. Transmitimos por Facebook Live y usted puja por WhatsApp, con el respaldo de 40 años de subastas físicas en nuestro ruedo.</p>
+      <p>Participe desde cualquier parte del mundo. Transmitimos por Facebook Live y ahora puede pujar directo aquí en la página, en tiempo real, con el respaldo de 40 años de subastas físicas en nuestro ruedo.</p>
     </div>
+
+    <div class="vivo-widget" id="vivo-widget" style="display:none">
+      <div class="vivo-top"><span class="punto"></span> En vivo ahora — <span id="vivo-lote-txt">Lote</span></div>
+      <div class="vivo-body">
+        <div class="vivo-foto">
+          <img id="vivo-foto" alt="" style="display:none">
+          <div class="vivo-foto-ph" id="vivo-foto-ph">RM</div>
+        </div>
+        <div class="vivo-info">
+          <h3 id="vivo-nombre"></h3>
+          <div class="vivo-specs" id="vivo-specs"></div>
+          <div class="vivo-precio"><span>Precio actual</span><b id="vivo-precio">L 0</b></div>
+          <div class="vivo-ganador" id="vivo-ganador"></div>
+          <div class="vivo-accion" id="vivo-accion"></div>
+          <div class="historial" id="vivo-historial"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="pasos">
-      <div class="paso"><div class="num">1</div><h4>Inscríbase</h4><p>Escríbanos por WhatsApp con su nombre y número. Le asignamos su código de comprador, igual que en el ruedo.</p></div>
-      <div class="paso"><div class="num">2</div><h4>Vea el lote en vivo</h4><p>Transmitimos cada animal por Facebook Live: se pesa en báscula frente a cámara y se anuncia el precio de salida.</p></div>
-      <div class="paso"><div class="num">3</div><h4>Puje y gane</h4><p>Envíe su oferta por WhatsApp durante la transmisión. Si gana el lote, coordinamos pago, guía de traslado y entrega.</p></div>
+      <div class="paso"><div class="num">1</div><h4>Regístrese</h4><p>Cree su cuenta gratis aquí arriba con su nombre y WhatsApp (o escríbanos si lo prefiere). Le asignamos su lugar de comprador, igual que en el ruedo.</p></div>
+      <div class="paso"><div class="num">2</div><h4>Vea el lote en vivo</h4><p>Transmitimos cada animal por Facebook Live: se pesa en báscula frente a cámara y aparece aquí mismo con su precio de salida.</p></div>
+      <div class="paso"><div class="num">3</div><h4>Puje y gane</h4><p>Presione el botón de pujar aquí en la página durante la transmisión, en tiempo real. Si gana el lote, coordinamos pago, guía de traslado y entrega.</p></div>
     </div>
     <div class="prox-subasta" id="prox-subasta-detalle">
       <b>Próxima subasta:</b> <span id="subasta-info">Fecha por anunciar. Síganos en Facebook @ranchomorolicahn para el anuncio oficial.</span>
@@ -358,6 +412,9 @@ const CONFIG = {
 
 const CATEGORIAS = ["Todos","Toro","Vaca parida","Vaca preñada","Vaquilla","Novillo","Ternero","Ternera"];
 let animales = [], filtro = "Todos", busqueda = "";
+let db = null;
+let sesionUsuario = null, authTab = "login";
+let subastaActivaId = null, loteVivo = null, ultimoLoteId = null, historialCache = [], canalSubasta = null;
 
 const DEMO = [
   {lote:"A-01",categoria:"Toro",nombre:"Toro Brahman blanco",peso_kg:520,edad_meses:38,precio_lps:58000,estado:"Para pesas",foto_url:"",vendido:false},
@@ -436,12 +493,13 @@ async function cargar(){
   ponerWhatsApps(); pintarFiltros();
   try{
     if(CONFIG.SUPABASE_ANON_KEY.startsWith("PEGUE")) throw new Error("sin config");
-    const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
     const {data, error} = await db.from("ganado_web").select("*")
       .eq("publicado", true).order("vendido").order("created_at",{ascending:false});
     if(error) throw error;
     animales = data || [];
-    cargarSubasta(db);
+    db.auth.onAuthStateChange(() => refrescarSesion());
+    cargarSubasta();
   }catch(e){
     animales = DEMO;
     $("#aviso-demo").style.display = "block";
@@ -449,7 +507,7 @@ async function cargar(){
   pintar();
 }
 
-async function cargarSubasta(db){
+async function cargarSubasta(){
   const {data} = await db.from("subastas_web").select("*")
     .eq("activa", true).order("fecha").limit(1);
   if(!data || !data.length) return;
@@ -464,7 +522,157 @@ async function cargarSubasta(db){
     $("#cuenta").textContent = `${dias}d ${h}h ${m}m ${s2}s`;
   };
   tick(); setInterval(tick, 1000);
+
+  subastaActivaId = s.id;
+  await refrescarSesion();
+  await cargarLotes();
+  suscribirTiempoReal();
 }
+
+async function cargarLotes(){
+  if(!subastaActivaId) return;
+  const {data} = await db.from("subasta_lotes").select("*").eq("subasta_id", subastaActivaId).order("orden");
+  loteVivo = (data||[]).find(l => l.estado === "en_vivo") || null;
+  if(loteVivo && loteVivo.id !== ultimoLoteId){
+    ultimoLoteId = loteVivo.id;
+    const {data:hist} = await db.from("pujas").select("*").eq("lote_id", loteVivo.id)
+      .order("created_at",{ascending:false}).limit(6);
+    historialCache = hist || [];
+  } else if(!loteVivo){
+    ultimoLoteId = null; historialCache = [];
+  }
+  renderVivo();
+}
+
+function suscribirTiempoReal(){
+  if(canalSubasta) db.removeChannel(canalSubasta);
+  canalSubasta = db.channel("subasta-"+subastaActivaId)
+    .on("postgres_changes",{event:"*",schema:"public",table:"subasta_lotes",filter:`subasta_id=eq.${subastaActivaId}`}, () => cargarLotes())
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"pujas"}, payload => {
+      if(loteVivo && payload.new.lote_id === loteVivo.id){
+        historialCache = [payload.new, ...historialCache].slice(0,6);
+        pintarHistorial();
+      }
+    })
+    .subscribe();
+}
+
+async function refrescarSesion(){
+  if(!db) return;
+  const {data:{session}} = await db.auth.getSession();
+  if(!session){ sesionUsuario = null; renderVivo(); return; }
+  const {data} = await db.from("perfiles").select("nombre,bloqueado").eq("id", session.user.id).maybeSingle();
+  sesionUsuario = {nombre: (data && data.nombre) || session.user.email, bloqueado: !!(data && data.bloqueado)};
+  renderVivo();
+}
+
+function siguienteMinimo(lote){
+  const base = (lote.precio_actual ?? (lote.precio_salida - lote.incremento)) + lote.incremento;
+  return Math.max(base, lote.incremento);
+}
+
+function pintarHistorial(){
+  const el = document.getElementById("vivo-historial");
+  if(!el) return;
+  el.innerHTML = historialCache.map(p =>
+    `<div><span>${p.comprador_nombre || "Comprador"}</span><b>${fmtL(p.monto)}</b></div>`).join("");
+}
+
+function renderVivo(){
+  const widget = $("#vivo-widget");
+  if(!loteVivo){ widget.style.display = "none"; return; }
+  widget.style.display = "block";
+  $("#vivo-lote-txt").textContent = `Lote ${loteVivo.lote} · ${loteVivo.categoria}`;
+  $("#vivo-nombre").textContent = loteVivo.nombre || loteVivo.categoria;
+  const fotoEl = $("#vivo-foto"), ph = $("#vivo-foto-ph");
+  if(loteVivo.foto_url){ fotoEl.src = loteVivo.foto_url; fotoEl.style.display = "block"; ph.style.display = "none"; }
+  else { fotoEl.removeAttribute("src"); fotoEl.style.display = "none"; ph.style.display = "flex"; }
+  $("#vivo-specs").innerHTML =
+    (loteVivo.peso_kg ? `<span>Peso: <b>${loteVivo.peso_kg} kg</b></span>` : "") +
+    (loteVivo.edad_meses ? `<span>Edad: <b>${edadTxt(loteVivo.edad_meses)}</b></span>` : "");
+  $("#vivo-precio").textContent = fmtL(loteVivo.precio_actual ?? loteVivo.precio_salida);
+  $("#vivo-ganador").textContent = loteVivo.ganador_nombre ? `Va ganando: ${loteVivo.ganador_nombre}` : "Aún sin pujas — sea el primero.";
+  $("#vivo-accion").innerHTML = accionVivoHtml();
+  pintarHistorial();
+}
+
+function accionVivoHtml(){
+  if(!sesionUsuario){
+    return `
+      <div class="auth-box">
+        <div class="auth-tabs">
+          <button class="${authTab==='login'?'on':''}" onclick="mostrarAuthTab('login')">Ya tengo cuenta</button>
+          <button class="${authTab==='reg'?'on':''}" onclick="mostrarAuthTab('reg')">Registrarme</button>
+        </div>
+        ${authTab==='login' ? `
+          <input id="auth-email" type="email" placeholder="Correo" autocomplete="email">
+          <input id="auth-pass" type="password" placeholder="Contraseña" autocomplete="current-password">
+          <button class="btn btn-fierro" onclick="hacerLogin()">Entrar y pujar</button>
+        ` : `
+          <input id="auth-nombre" type="text" placeholder="Su nombre completo">
+          <input id="auth-tel" type="tel" placeholder="Su WhatsApp (504...)">
+          <input id="auth-email" type="email" placeholder="Correo" autocomplete="email">
+          <input id="auth-pass" type="password" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="new-password">
+          <button class="btn btn-fierro" onclick="hacerRegistro()">Crear cuenta y pujar</button>
+        `}
+        <div class="puja-msg" id="auth-msg"></div>
+      </div>`;
+  }
+  if(sesionUsuario.bloqueado){
+    return `<div class="puja-msg err">Su cuenta no puede pujar en este momento. Escríbanos por WhatsApp.</div>`;
+  }
+  return `
+    <div class="pujando-como"><span>Pujando como <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+    <button class="btn btn-pujar" id="btn-pujar" onclick="enviarPuja()">Pujar ${fmtL(siguienteMinimo(loteVivo))}</button>
+    <div class="puja-msg" id="puja-msg"></div>`;
+}
+
+window.mostrarAuthTab = t => { authTab = t; renderVivo(); };
+
+window.hacerLogin = async () => {
+  const email = document.getElementById("auth-email").value.trim();
+  const pass = document.getElementById("auth-pass").value;
+  const msgEl = document.getElementById("auth-msg");
+  const {error} = await db.auth.signInWithPassword({email, password: pass});
+  if(error){ msgEl.textContent = "Correo o contraseña incorrectos."; msgEl.className = "puja-msg err"; return; }
+  await refrescarSesion();
+};
+
+window.hacerRegistro = async () => {
+  const nombre = document.getElementById("auth-nombre").value.trim();
+  const telefono = document.getElementById("auth-tel").value.trim();
+  const email = document.getElementById("auth-email").value.trim();
+  const pass = document.getElementById("auth-pass").value;
+  const msgEl = document.getElementById("auth-msg");
+  if(!nombre || !email || pass.length < 6){
+    msgEl.textContent = "Complete nombre, correo y una contraseña de al menos 6 caracteres.";
+    msgEl.className = "puja-msg err";
+    return;
+  }
+  const {data, error} = await db.auth.signUp({email, password: pass, options:{data:{nombre, telefono}}});
+  if(error){ msgEl.textContent = "No se pudo registrar: " + error.message; msgEl.className = "puja-msg err"; return; }
+  if(data.session){ await refrescarSesion(); }
+  else { msgEl.textContent = "Cuenta creada. Revise su correo para confirmarla y luego inicie sesión."; msgEl.className = "puja-msg ok"; }
+};
+
+window.salirSesionVivo = async () => { await db.auth.signOut(); await refrescarSesion(); };
+
+window.enviarPuja = async () => {
+  if(!loteVivo) return;
+  const btn = document.getElementById("btn-pujar");
+  const msgEl = document.getElementById("puja-msg");
+  const monto = siguienteMinimo(loteVivo);
+  btn.disabled = true; btn.textContent = "Enviando…";
+  const {error} = await db.rpc("hacer_puja", {p_lote_id: loteVivo.id, p_monto: monto});
+  if(error){
+    msgEl.textContent = error.message;
+    msgEl.className = "puja-msg err";
+    await cargarLotes();
+  } else {
+    msgEl.textContent = "¡Su puja fue registrada!";
+    msgEl.className = "puja-msg ok";
+  }
+};
 
 $("#buscador").addEventListener("input", e => { busqueda = e.target.value; pintar(); });
 cargar();

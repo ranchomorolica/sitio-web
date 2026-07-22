@@ -101,10 +101,56 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <div class="msg" id="s-msg"></div>
   </div>
 
+  <!-- LOTES DE LA SUBASTA EN VIVO -->
+  <div class="tarjeta oculto-sec" id="sec-vivo">
+    <h2>Lotes de la subasta en vivo</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Guarde primero la subasta de arriba. Agregue aquí los animales en el orden en que los va a rematar. Solo puede haber un lote "En vivo" a la vez — los compradores pujan por ese lote en tiempo real desde la página.</p>
+    <input type="hidden" id="l-id">
+    <div class="fila">
+      <div><label>Orden</label><input id="l-orden" type="number" value="1"></div>
+      <div><label>Lote *</label><input id="l-lote" placeholder="A-01"></div>
+    </div>
+    <label>Categoría *</label>
+    <select id="l-cat">
+      <option>Toro</option><option>Vaca parida</option><option>Vaca preñada</option>
+      <option>Vaquilla</option><option>Novillo</option><option>Ternero</option><option>Ternera</option>
+    </select>
+    <label>Nombre / descripción</label><input id="l-nombre" placeholder="Toro Brahman blanco">
+    <div class="fila">
+      <div><label>Peso (kg)</label><input id="l-peso" type="number" inputmode="numeric"></div>
+      <div><label>Edad (meses)</label><input id="l-edad" type="number" inputmode="numeric"></div>
+    </div>
+    <div class="fila">
+      <div><label>Precio de salida (L) *</label><input id="l-salida" type="number" inputmode="numeric"></div>
+      <div><label>Incremento mínimo (L)</label><input id="l-incremento" type="number" inputmode="numeric" value="500"></div>
+    </div>
+    <label>Foto</label>
+    <input id="l-foto" type="file" accept="image/*">
+    <img id="l-foto-prev" alt="Vista previa" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px;display:none">
+    <button class="btn btn-f" id="btn-guardar-lote">Guardar lote</button>
+    <button class="btn btn-gris" id="btn-cancelar-lote" style="display:none">Cancelar edición</button>
+    <div class="msg" id="l-msg"></div>
+    <div id="lista-lotes" style="margin-top:18px"></div>
+  </div>
+
   <!-- INVENTARIO -->
   <div class="tarjeta oculto-sec" id="sec-lista">
     <h2>Inventario publicado (<span id="total">0</span>)</h2>
     <div id="lista"></div>
+  </div>
+
+  <!-- COMPRADORES -->
+  <div class="tarjeta oculto-sec" id="sec-compradores">
+    <h2>Compradores registrados (<span id="total-compradores">0</span>)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Personas que se registraron en la página para pujar en las subastas en vivo. Puede bloquear a alguien si es necesario; un comprador bloqueado no puede pujar.</p>
+    <div id="lista-compradores"></div>
+  </div>
+
+  <!-- SIN PERMISOS -->
+  <div class="tarjeta" id="sec-no-admin" style="display:none">
+    <h2>Sin permisos de administrador</h2>
+    <p style="color:#5c554a;font-size:.92rem">Esta cuenta inició sesión correctamente pero no tiene permisos de administrador. Si usted es el dueño del rancho, entre a Supabase → SQL Editor y ejecute (con su correo):</p>
+    <p style="font-family:monospace;background:#f3ede2;padding:10px;border-radius:6px;font-size:.8rem;margin-top:8px;word-break:break-all">update public.perfiles set es_admin = true where id = (select id from auth.users where email = 'su-correo@ejemplo.com');</p>
   </div>
 </div>
 
@@ -123,11 +169,20 @@ const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.classNa
 
 async function sesion(){
   const {data:{session}} = await db.auth.getSession();
-  const dentro = !!session;
-  $("#sec-login").style.display = dentro ? "none" : "block";
-  ["#sec-form","#sec-subasta","#sec-lista"].forEach(s=>$(s).style.display = dentro ? "block" : "none");
-  $("#btn-salir").style.display = dentro ? "block" : "none";
-  if(dentro){ listar(); cargarSubasta(); }
+  if(!session){
+    $("#sec-login").style.display = "block";
+    $("#sec-no-admin").style.display = "none";
+    ["#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-compradores"].forEach(s=>$(s).style.display = "none");
+    $("#btn-salir").style.display = "none";
+    return;
+  }
+  $("#sec-login").style.display = "none";
+  $("#btn-salir").style.display = "block";
+  const {data:perfil} = await db.from("perfiles").select("es_admin").eq("id", session.user.id).maybeSingle();
+  const esAdmin = !!(perfil && perfil.es_admin);
+  ["#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-compradores"].forEach(s=>$(s).style.display = esAdmin ? "block" : "none");
+  $("#sec-no-admin").style.display = esAdmin ? "none" : "block";
+  if(esAdmin){ listar(); cargarSubasta(); cargarCompradores(); }
 }
 
 $("#btn-entrar").onclick = async () => {
@@ -227,13 +282,17 @@ window.borrar = async (id, lote) => {
   if(!error) listar();
 };
 
+let subastaIdActual = null;
+
 async function cargarSubasta(){
   const {data} = await db.from("subastas_web").select("*").order("fecha",{ascending:false}).limit(1);
   if(data && data.length){
     const s = data[0];
+    subastaIdActual = s.id;
     $("#s-id").value=s.id; $("#s-nombre").value=s.nombre;
     $("#s-fecha").value = s.fecha ? new Date(new Date(s.fecha).getTime()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16) : "";
     $("#s-desc").value=s.descripcion||""; $("#s-activa").checked=s.activa;
+    cargarLotesAdmin();
   }
 }
 
@@ -246,9 +305,132 @@ $("#btn-subasta").onclick = async () => {
   };
   if(!reg.nombre || !reg.fecha) return msg("#s-msg","Nombre y fecha son obligatorios.","err");
   const id = $("#s-id").value;
-  const q = id ? db.from("subastas_web").update(reg).eq("id", id) : db.from("subastas_web").insert(reg);
-  const {error} = await q;
+  const q = id ? db.from("subastas_web").update(reg).eq("id", id).select().single()
+               : db.from("subastas_web").insert(reg).select().single();
+  const {data, error} = await q;
+  if(!error){ subastaIdActual = data.id; $("#s-id").value = data.id; cargarLotesAdmin(); }
   msg("#s-msg", error ? "Error: "+error.message : "Subasta guardada. Ya aparece en la página.", error ? "err" : "ok");
+};
+
+/* ===== LOTES DE LA SUBASTA EN VIVO ===== */
+
+async function cargarLotesAdmin(){
+  if(!subastaIdActual){
+    $("#lista-lotes").innerHTML = "<p style='color:#7a7263'>Guarde la subasta de arriba primero.</p>";
+    return;
+  }
+  const {data} = await db.from("subasta_lotes").select("*").eq("subasta_id", subastaIdActual).order("orden");
+  window._lotes = data || [];
+  $("#l-orden").value = window._lotes.length + 1;
+  $("#lista-lotes").innerHTML = window._lotes.map(l => `
+    <div class="lista-item">
+      ${l.foto_url ? `<img src="${l.foto_url}" alt="">` : `<div class="mini">RM</div>`}
+      <div class="li-info">
+        <b>#${l.orden} · Lote ${l.lote} · ${l.categoria}</b>
+        Salida: L ${Number(l.precio_salida).toLocaleString("es-HN")}${l.precio_actual ? ` · Actual: L ${Number(l.precio_actual).toLocaleString("es-HN")} (${l.ganador_nombre||"—"})` : ""}<br>
+        <span class="pill ${l.estado==='en_vivo'?'vend':l.estado==='vendido'?'pub':'oculto'}">${l.estado}</span>
+      </div>
+      <div class="li-acciones">
+        ${l.estado==='pendiente' ? `<button class="btn btn-chico btn-f" onclick="ponerEnVivo('${l.id}')">Poner en vivo</button>` : ""}
+        ${l.estado==='en_vivo' ? `<button class="btn btn-chico btn-v" onclick="cerrarLote('${l.id}',true)">Vendido</button><button class="btn btn-chico btn-gris" onclick="cerrarLote('${l.id}',false)">Cerrar sin venta</button>` : ""}
+        <button class="btn btn-chico btn-gris" onclick="editarLote('${l.id}')">Editar</button>
+        <button class="btn btn-chico btn-rojo" onclick="borrarLote('${l.id}')">Borrar</button>
+      </div>
+    </div>`).join("") || "<p style='color:#7a7263'>Aún no hay lotes. Agregue el primero arriba.</p>";
+}
+
+window.ponerEnVivo = async (id) => {
+  await db.from("subasta_lotes").update({estado:"pendiente"}).eq("subasta_id", subastaIdActual).eq("estado","en_vivo");
+  await db.from("subasta_lotes").update({estado:"en_vivo"}).eq("id", id);
+  cargarLotesAdmin();
+};
+
+window.cerrarLote = async (id, vendido) => {
+  await db.from("subasta_lotes").update({estado: vendido ? "vendido" : "cerrado"}).eq("id", id);
+  cargarLotesAdmin();
+};
+
+window.editarLote = id => {
+  const l = window._lotes.find(x=>x.id===id);
+  if(!l) return;
+  $("#l-id").value=l.id; $("#l-orden").value=l.orden; $("#l-lote").value=l.lote; $("#l-cat").value=l.categoria;
+  $("#l-nombre").value=l.nombre||""; $("#l-peso").value=l.peso_kg||""; $("#l-edad").value=l.edad_meses||"";
+  $("#l-salida").value=l.precio_salida; $("#l-incremento").value=l.incremento;
+  if(l.foto_url){ $("#l-foto-prev").src=l.foto_url; $("#l-foto-prev").style.display="block"; }
+  $("#btn-cancelar-lote").style.display = "block";
+  window.scrollTo({top:0, behavior:"smooth"});
+};
+
+window.borrarLote = async (id) => {
+  if(!confirm("¿Borrar este lote? Esta acción no se puede deshacer.")) return;
+  await db.from("subasta_lotes").delete().eq("id", id);
+  cargarLotesAdmin();
+};
+
+$("#l-foto").onchange = e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  $("#l-foto-prev").src = URL.createObjectURL(f);
+  $("#l-foto-prev").style.display = "block";
+};
+
+function limpiarLote(){
+  ["l-id","l-lote","l-nombre","l-peso","l-edad","l-salida"].forEach(i=>$("#"+i).value="");
+  $("#l-orden").value = (window._lotes && window._lotes.length || 0) + 1;
+  $("#l-incremento").value = 500;
+  $("#l-foto").value=""; $("#l-foto-prev").style.display="none";
+  $("#btn-cancelar-lote").style.display = "none";
+}
+$("#btn-cancelar-lote").onclick = limpiarLote;
+
+$("#btn-guardar-lote").onclick = async () => {
+  if(!subastaIdActual) return msg("#l-msg","Guarde la subasta de arriba primero.","err");
+  const lote = $("#l-lote").value.trim();
+  const salida = Number($("#l-salida").value);
+  if(!lote || !salida) return msg("#l-msg","Lote y precio de salida son obligatorios.","err");
+  $("#btn-guardar-lote").disabled = true; $("#btn-guardar-lote").textContent = "Guardando…";
+  try{
+    const reg = {
+      subasta_id: subastaIdActual, orden: Number($("#l-orden").value) || 0, lote,
+      categoria: $("#l-cat").value, nombre: $("#l-nombre").value.trim(),
+      peso_kg: Number($("#l-peso").value) || null, edad_meses: Number($("#l-edad").value) || null,
+      precio_salida: salida, incremento: Number($("#l-incremento").value) || 500
+    };
+    const archivo = $("#l-foto").files[0];
+    if(archivo) reg.foto_url = await subirFoto(archivo, "lote-"+lote);
+    const id = $("#l-id").value;
+    const q = id ? db.from("subasta_lotes").update(reg).eq("id", id) : db.from("subasta_lotes").insert(reg);
+    const {error} = await q;
+    if(error) throw error;
+    msg("#l-msg", id ? "Lote actualizado." : "Lote agregado.", "ok");
+    limpiarLote(); cargarLotesAdmin();
+  }catch(e){ msg("#l-msg","Error: "+e.message,"err"); }
+  $("#btn-guardar-lote").disabled = false; $("#btn-guardar-lote").textContent = "Guardar lote";
+};
+
+/* ===== COMPRADORES REGISTRADOS ===== */
+
+async function cargarCompradores(){
+  const {data} = await db.from("perfiles").select("*").eq("es_admin", false).order("created_at",{ascending:false});
+  const lista = data || [];
+  $("#total-compradores").textContent = lista.length;
+  $("#lista-compradores").innerHTML = lista.map(p => `
+    <div class="lista-item">
+      <div class="mini">${(p.nombre||"?").charAt(0).toUpperCase()}</div>
+      <div class="li-info">
+        <b>${p.nombre || "(sin nombre)"}</b>
+        ${p.telefono || "sin teléfono"}<br>
+        <span class="pill ${p.bloqueado?'vend':'pub'}">${p.bloqueado?'Bloqueado':'Activo'}</span>
+      </div>
+      <div class="li-acciones">
+        <button class="btn btn-chico ${p.bloqueado?'btn-v':'btn-rojo'}" onclick="toggleBloqueo('${p.id}', ${!p.bloqueado})">${p.bloqueado?'Desbloquear':'Bloquear'}</button>
+      </div>
+    </div>`).join("") || "<p style='color:#7a7263'>Aún no hay compradores registrados.</p>";
+}
+
+window.toggleBloqueo = async (id, bloquear) => {
+  await db.from("perfiles").update({bloqueado: bloquear}).eq("id", id);
+  cargarCompradores();
 };
 
 sesion();
