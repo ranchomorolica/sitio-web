@@ -190,6 +190,39 @@ section{padding:64px 0}
 .auth-box input{width:100%;padding:11px 13px;border:2px solid #d5cbb2;border-radius:6px;margin-bottom:9px;font-family:'Archivo',sans-serif;font-size:.92rem}
 .auth-box .btn{width:100%;justify-content:center;padding:12px}
 
+/* ===== ESTADOS KYC / DEPÓSITO ===== */
+.kyc-box{max-width:420px}
+.kyc-box input,.kyc-box select{width:100%;padding:11px 13px;border:2px solid #d5cbb2;border-radius:6px;margin-bottom:9px;font-family:'Archivo',sans-serif;font-size:.92rem;background:#fff}
+.kyc-box label{display:block;font-size:.78rem;font-weight:700;color:#4c463c;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.kyc-box .campo{margin-bottom:10px}
+.kyc-box .btn{width:100%;justify-content:center;padding:12px}
+.estado-info{max-width:420px;background:#fff3d6;border:2px dashed var(--fierro);border-radius:8px;padding:16px}
+.estado-info.rechazado{background:#fde3dd;border-color:var(--rojo)}
+.estado-info.aprobado{background:#dff2e4;border-color:#2e7d46}
+.estado-info b{display:block;margin-bottom:6px}
+.estado-info p{font-size:.88rem;color:#3c3830;margin-bottom:8px}
+.estado-info pre{white-space:pre-wrap;font-family:'Archivo',sans-serif;font-size:.85rem;background:rgba(255,255,255,.5);padding:8px;border-radius:6px;margin-bottom:8px}
+
+/* ===== VIDEO EN VIVO ===== */
+.video-embed{border-radius:10px;overflow:hidden;margin-bottom:20px;background:#000}
+.video-embed iframe{display:block;width:100%}
+.video-embed-link{margin-bottom:20px}
+
+/* ===== PRECIO EN USD ===== */
+.precio-usd{display:block;font-size:.72rem;font-weight:600;color:#7a7263;letter-spacing:.5px}
+
+/* ===== VENDEDORES / RESEÑAS ===== */
+.vendedor-badge{font-size:.76rem;color:var(--cuero);font-weight:700;margin-top:-4px}
+.estrellas{color:var(--fierro);letter-spacing:1px}
+.vend-card{background:var(--blanco);border-radius:10px;padding:22px;box-shadow:0 3px 14px rgba(28,26,22,.09);margin-bottom:18px}
+.vend-card h3{color:var(--monte);font-size:1.1rem;margin-bottom:4px}
+.vend-card .ubi{font-size:.85rem;color:#7a7263;margin-bottom:8px}
+.vend-card .rank{font-size:.9rem;margin-bottom:10px}
+.resena{border-top:1px dashed #d5cbb2;padding-top:10px;margin-top:10px;font-size:.86rem}
+.resena b{color:var(--monte)}
+.resena-form{border-top:1px dashed #d5cbb2;padding-top:12px;margin-top:12px}
+.resena-form select,.resena-form textarea{width:100%;padding:10px;border:2px solid #d5cbb2;border-radius:6px;margin-bottom:8px;font-family:'Archivo',sans-serif}
+
 /* ===== VENDE / CITA ===== */
 .dos-col{display:grid;grid-template-columns:1fr 1fr;gap:28px}
 @media(max-width:760px){.dos-col{grid-template-columns:1fr}}
@@ -240,6 +273,7 @@ footer a:hover{color:var(--fierro)}
     <div class="navlinks">
       <a href="#catalogo">Catálogo</a>
       <a href="#subastas">Subastas en línea</a>
+      <a href="#vendedores">Vendedores</a>
       <a href="#vender">Vende con nosotros</a>
       <a href="#ubicacion">Ubicación</a>
       <a class="btn btn-ws" id="ws-nav" href="#" target="_blank" rel="noopener">WhatsApp</a>
@@ -293,6 +327,8 @@ footer a:hover{color:var(--fierro)}
       <p>Participe desde cualquier parte del mundo. Transmitimos por Facebook Live y ahora puede pujar directo aquí en la página, en tiempo real, con el respaldo de 40 años de subastas físicas en nuestro ruedo.</p>
     </div>
 
+    <div id="video-en-vivo"></div>
+
     <div class="vivo-widget" id="vivo-widget" style="display:none">
       <div class="vivo-top"><span class="punto"></span> En vivo ahora — <span id="vivo-lote-txt">Lote</span></div>
       <div class="vivo-body">
@@ -323,6 +359,16 @@ footer a:hover{color:var(--fierro)}
       <a class="btn btn-ws" id="ws-inscribir" href="#" target="_blank" rel="noopener">Inscribirme por WhatsApp</a>
       <a class="btn btn-linea" href="https://www.facebook.com/ranchomorolicahn" target="_blank" rel="noopener">Seguir en Facebook</a>
     </div>
+  </div>
+</section>
+
+<section id="vendedores">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 class="display">Vendedores consignatarios</h2>
+      <p>Rancheros aliados que también consignan su ganado en nuestras subastas. Vea su calificación de otros compradores antes de pujar por sus animales.</p>
+    </div>
+    <div id="lista-vendedores-pub"></div>
   </div>
 </section>
 
@@ -415,6 +461,8 @@ let animales = [], filtro = "Todos", busqueda = "";
 let db = null;
 let sesionUsuario = null, authTab = "login";
 let subastaActivaId = null, loteVivo = null, ultimoLoteId = null, historialCache = [], canalSubasta = null;
+let configSitio = { tipo_cambio_lps_por_usd: 26.5, deposito_garantia_lps: 10000, datos_bancarios: "" };
+let vendedoresPublicos = [], resenaVendedorSel = null;
 
 const DEMO = [
   {lote:"A-01",categoria:"Toro",nombre:"Toro Brahman blanco",peso_kg:520,edad_meses:38,precio_lps:58000,estado:"Para pesas",foto_url:"",vendido:false},
@@ -424,6 +472,7 @@ const DEMO = [
 
 const $ = s => document.querySelector(s);
 const fmtL = n => "L " + Number(n).toLocaleString("es-HN");
+const fmtUSD = n => "$ " + (Number(n)/configSitio.tipo_cambio_lps_por_usd).toLocaleString("en-US",{maximumFractionDigits:0});
 
 function wsLink(msg){
   return `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(msg)}`;
@@ -469,6 +518,7 @@ function pintar(){
     const foto = a.foto_url
       ? `<img src="${a.foto_url}" alt="${a.categoria} lote ${a.lote} en venta en Honduras" loading="lazy">`
       : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:'Bevan',serif;color:#a89b7d;font-size:2.2rem">RM</div>`;
+    const vendedor = a.vendedor_id ? vendedoresPublicos.find(v=>v.id===a.vendedor_id) : null;
     return `<article class="card">
       <div class="card-foto">${foto}
         <span class="sello ${a.categoria==='Vaca preñada'?'prenada':''}">${a.categoria}</span>
@@ -477,12 +527,13 @@ function pintar(){
       <div class="card-body">
         <span class="card-lote">Lote ${a.lote}</span>
         <h3>${a.nombre || a.categoria}</h3>
+        ${vendedor ? `<span class="vendedor-badge">Consignado por ${vendedor.nombre_finca}${vendedor._prom ? " · ★ "+vendedor._prom : ""}</span>` : ""}
         <div class="specs">
           <span>Peso: <b>${a.peso_kg} kg</b></span>
           <span>Edad: <b>${edadTxt(a.edad_meses)}</b></span>
           ${a.estado?`<span style="grid-column:1/-1">Estado: <b>${a.estado}</b></span>`:''}
         </div>
-        <div class="precio">${a.precio_lps?fmtL(a.precio_lps):"Consultar"} <small>LPS</small></div>
+        <div class="precio">${a.precio_lps?fmtL(a.precio_lps):"Consultar"} <small>LPS</small>${a.precio_lps?`<span class="precio-usd">≈ ${fmtUSD(a.precio_lps)} USD</span>`:''}</div>
         ${a.vendido?'':`<a class="btn btn-ws" href="${wsLink(msg)}" target="_blank" rel="noopener">Me interesa este animal</a>`}
       </div>
     </article>`;
@@ -494,6 +545,8 @@ async function cargar(){
   try{
     if(CONFIG.SUPABASE_ANON_KEY.startsWith("PEGUE")) throw new Error("sin config");
     db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    try{ await cargarConfig(); }catch(e){ /* config_sitio aún no existe: se usan valores por defecto */ }
+    try{ await cargarVendedoresPublicos(); }catch(e){ /* vendedores aún no existe */ }
     const {data, error} = await db.from("ganado_web").select("*")
       .eq("publicado", true).order("vendido").order("created_at",{ascending:false});
     if(error) throw error;
@@ -505,6 +558,11 @@ async function cargar(){
     $("#aviso-demo").style.display = "block";
   }
   pintar();
+}
+
+async function cargarConfig(){
+  const {data} = await db.from("config_sitio").select("*").maybeSingle();
+  if(data) configSitio = data;
 }
 
 async function cargarSubasta(){
@@ -523,10 +581,25 @@ async function cargarSubasta(){
   };
   tick(); setInterval(tick, 1000);
 
+  $("#video-en-vivo").innerHTML = embedVideoHtml(s.video_url);
+
   subastaActivaId = s.id;
   await refrescarSesion();
   await cargarLotes();
   suscribirTiempoReal();
+}
+
+function embedVideoHtml(url){
+  if(!url) return "";
+  if(/facebook\.com/.test(url)){
+    const src = "https://www.facebook.com/plugins/video.php?height=314&href=" + encodeURIComponent(url) + "&show_text=false";
+    return `<div class="video-embed"><iframe src="${src}" width="100%" height="314" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowfullscreen allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"></iframe></div>`;
+  }
+  const yt = url.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=|youtube\.com\/live\/)([\w-]+)/);
+  if(yt){
+    return `<div class="video-embed"><iframe width="100%" height="314" src="https://www.youtube.com/embed/${yt[1]}" title="Transmisión en vivo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+  }
+  return `<div class="video-embed-link"><a class="btn btn-fierro" href="${url}" target="_blank" rel="noopener">Ver transmisión en vivo</a></div>`;
 }
 
 async function cargarLotes(){
@@ -560,10 +633,26 @@ function suscribirTiempoReal(){
 async function refrescarSesion(){
   if(!db) return;
   const {data:{session}} = await db.auth.getSession();
-  if(!session){ sesionUsuario = null; renderVivo(); return; }
-  const {data} = await db.from("perfiles").select("nombre,bloqueado").eq("id", session.user.id).maybeSingle();
-  sesionUsuario = {nombre: (data && data.nombre) || session.user.email, bloqueado: !!(data && data.bloqueado)};
+  if(!session){ sesionUsuario = null; renderVivo(); renderVendedoresPublicos(); return; }
+  const {data} = await db.from("perfiles").select("*").eq("id", session.user.id).maybeSingle();
+  let depositoPendiente = false;
+  if(data && data.estado_verificacion === "aprobado" && !data.deposito_pagado){
+    const {data:deps} = await db.from("depositos").select("id,estado")
+      .eq("comprador_id", session.user.id).order("created_at",{ascending:false}).limit(1);
+    depositoPendiente = !!(deps && deps.length && deps[0].estado === "pendiente");
+  }
+  sesionUsuario = {
+    id: session.user.id,
+    nombre: (data && data.nombre) || session.user.email,
+    bloqueado: !!(data && data.bloqueado),
+    estadoVerificacion: (data && data.estado_verificacion) || "pendiente",
+    motivoRechazo: data && data.motivo_rechazo,
+    tieneIdentidad: !!(data && data.identidad),
+    depositoPagado: !!(data && data.deposito_pagado),
+    depositoPendiente
+  };
   renderVivo();
+  renderVendedoresPublicos();
 }
 
 function siguienteMinimo(lote){
@@ -621,6 +710,65 @@ function accionVivoHtml(){
   if(sesionUsuario.bloqueado){
     return `<div class="puja-msg err">Su cuenta no puede pujar en este momento. Escríbanos por WhatsApp.</div>`;
   }
+
+  if(sesionUsuario.estadoVerificacion === "pendiente" && !sesionUsuario.tieneIdentidad){
+    return `
+      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+      <div class="kyc-box">
+        <p style="font-size:.85rem;color:#5c554a;margin-bottom:10px">Para pujar, el rancho necesita verificar su identidad. Complete estos datos una sola vez.</p>
+        <div class="campo"><label>Número de identidad *</label><input id="kyc-identidad"></div>
+        <div class="campo"><label>Dirección actual *</label><input id="kyc-direccion"></div>
+        <div class="campo"><label>Estado civil *</label>
+          <select id="kyc-estado-civil">
+            <option value="">Seleccione…</option>
+            <option>Soltero(a)</option><option>Casado(a)</option><option>Unión libre</option>
+            <option>Divorciado(a)</option><option>Viudo(a)</option>
+          </select>
+        </div>
+        <div class="campo"><label>Foto de identidad — frente *</label><input id="kyc-foto-frente" type="file" accept="image/*"></div>
+        <div class="campo"><label>Foto de identidad — dorso *</label><input id="kyc-foto-dorso" type="file" accept="image/*"></div>
+        <button class="btn btn-fierro" id="btn-kyc" onclick="enviarKyc()">Enviar para revisión</button>
+        <div class="puja-msg" id="kyc-msg"></div>
+      </div>`;
+  }
+
+  if(sesionUsuario.estadoVerificacion === "pendiente"){
+    return `
+      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+      <div class="estado-info"><b>Sus datos están en revisión</b><p>El rancho está verificando su identidad. Le avisaremos por WhatsApp cuando sea aprobado para pujar.</p></div>`;
+  }
+
+  if(sesionUsuario.estadoVerificacion === "rechazado"){
+    return `
+      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+      <div class="estado-info rechazado"><b>Su registro no fue aprobado</b>
+        ${sesionUsuario.motivoRechazo ? `<p>Motivo: ${sesionUsuario.motivoRechazo}</p>` : ""}
+        <p>Escríbanos por WhatsApp para corregir sus datos.</p>
+        <a class="btn btn-ws" href="${wsLink('Hola Rancho Morolica, mi registro para pujar en línea no fue aprobado y quiero corregir mis datos.')}" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+      </div>`;
+  }
+
+  if(sesionUsuario.estadoVerificacion === "aprobado" && !sesionUsuario.depositoPagado){
+    if(sesionUsuario.depositoPendiente){
+      return `
+        <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+        <div class="estado-info"><b>Su comprobante de depósito está en revisión</b><p>En cuanto lo confirmemos podrá pujar.</p></div>`;
+    }
+    return `
+      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+      <div class="estado-info aprobado">
+        <b>¡Identidad aprobada! Falta el depósito de garantía</b>
+        <p>Deposite o transfiera <b>${fmtL(configSitio.deposito_garantia_lps)}</b> (≈ ${fmtUSD(configSitio.deposito_garantia_lps)} USD) a:</p>
+        <pre>${configSitio.datos_bancarios}</pre>
+      </div>
+      <div class="kyc-box" style="margin-top:12px">
+        <div class="campo"><label>Monto depositado (L) *</label><input id="dep-monto" type="number" inputmode="numeric" value="${configSitio.deposito_garantia_lps}"></div>
+        <div class="campo"><label>Foto del comprobante *</label><input id="dep-foto" type="file" accept="image/*"></div>
+        <button class="btn btn-fierro" id="btn-deposito" onclick="enviarComprobante()">Enviar comprobante</button>
+        <div class="puja-msg" id="dep-msg"></div>
+      </div>`;
+  }
+
   return `
     <div class="pujando-como"><span>Pujando como <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
     <button class="btn btn-pujar" id="btn-pujar" onclick="enviarPuja()">Pujar ${fmtL(siguienteMinimo(loteVivo))}</button>
@@ -672,6 +820,128 @@ window.enviarPuja = async () => {
     msgEl.textContent = "¡Su puja fue registrada!";
     msgEl.className = "puja-msg ok";
   }
+};
+
+async function subirArchivoPrivado(bucket, archivo, nombre){
+  const ext = archivo.name.split(".").pop() || "jpg";
+  const ruta = `${sesionUsuario.id}/${nombre}-${Date.now()}.${ext}`;
+  const {error} = await db.storage.from(bucket).upload(ruta, archivo, {upsert:true});
+  if(error) throw error;
+  return ruta;
+}
+
+window.enviarKyc = async () => {
+  const identidad = document.getElementById("kyc-identidad").value.trim();
+  const direccion = document.getElementById("kyc-direccion").value.trim();
+  const estadoCivil = document.getElementById("kyc-estado-civil").value;
+  const fotoFrente = document.getElementById("kyc-foto-frente").files[0];
+  const fotoDorso = document.getElementById("kyc-foto-dorso").files[0];
+  const msgEl = document.getElementById("kyc-msg");
+  if(!identidad || !direccion || !estadoCivil || !fotoFrente || !fotoDorso){
+    msgEl.textContent = "Complete todos los campos y suba ambas fotos de su identidad.";
+    msgEl.className = "puja-msg err";
+    return;
+  }
+  const btn = document.getElementById("btn-kyc");
+  btn.disabled = true; btn.textContent = "Enviando…";
+  try{
+    const rutaFrente = await subirArchivoPrivado("kyc-documentos", fotoFrente, "frente");
+    const rutaDorso = await subirArchivoPrivado("kyc-documentos", fotoDorso, "dorso");
+    const {error} = await db.from("perfiles").update({
+      identidad, direccion, estado_civil: estadoCivil,
+      foto_id_frente_url: rutaFrente, foto_id_dorso_url: rutaDorso
+    }).eq("id", sesionUsuario.id);
+    if(error) throw error;
+    await refrescarSesion();
+  }catch(e){
+    msgEl.textContent = "Error: " + e.message;
+    msgEl.className = "puja-msg err";
+    btn.disabled = false; btn.textContent = "Enviar para revisión";
+  }
+};
+
+window.enviarComprobante = async () => {
+  const monto = Number(document.getElementById("dep-monto").value);
+  const foto = document.getElementById("dep-foto").files[0];
+  const msgEl = document.getElementById("dep-msg");
+  if(!monto || !foto){
+    msgEl.textContent = "Escriba el monto y suba la foto del comprobante.";
+    msgEl.className = "puja-msg err";
+    return;
+  }
+  const btn = document.getElementById("btn-deposito");
+  btn.disabled = true; btn.textContent = "Enviando…";
+  try{
+    const ruta = await subirArchivoPrivado("comprobantes-deposito", foto, "comprobante");
+    const {error} = await db.from("depositos").insert({
+      comprador_id: sesionUsuario.id, monto, comprobante_url: ruta
+    });
+    if(error) throw error;
+    await refrescarSesion();
+  }catch(e){
+    msgEl.textContent = "Error: " + e.message;
+    msgEl.className = "puja-msg err";
+    btn.disabled = false; btn.textContent = "Enviar comprobante";
+  }
+};
+
+/* ===== VENDEDORES Y RESEÑAS ===== */
+
+async function cargarVendedoresPublicos(){
+  const {data} = await db.from("vendedores").select("*").eq("estado","aprobado").order("nombre_finca");
+  vendedoresPublicos = data || [];
+  const {data:resenas} = await db.from("resenas_vendedor").select("*").order("created_at",{ascending:false});
+  const porVendedor = {};
+  (resenas||[]).forEach(r => { (porVendedor[r.vendedor_id] = porVendedor[r.vendedor_id]||[]).push(r); });
+  vendedoresPublicos.forEach(v => {
+    const rs = porVendedor[v.id] || [];
+    v._resenas = rs;
+    v._prom = rs.length ? (rs.reduce((s,r)=>s+r.calificacion,0)/rs.length).toFixed(1) : null;
+  });
+  renderVendedoresPublicos();
+}
+
+function estrellasHtml(n){
+  return `<span class="estrellas">${"★".repeat(n)}${"☆".repeat(5-n)}</span>`;
+}
+
+function renderVendedoresPublicos(){
+  const cont = $("#lista-vendedores-pub");
+  if(!cont) return;
+  if(!vendedoresPublicos.length){
+    cont.innerHTML = "<p style='color:#7a7263'>Por ahora todo nuestro ganado es de Rancho Morolica. Pronto sumaremos vendedores aliados.</p>";
+    return;
+  }
+  cont.innerHTML = vendedoresPublicos.map(v => {
+    const puedeCalificar = sesionUsuario && sesionUsuario.estadoVerificacion === "aprobado";
+    const yaCalifico = sesionUsuario && v._resenas.some(r => r.comprador_id === sesionUsuario.id);
+    return `<div class="vend-card">
+      <h3>${v.nombre_finca}</h3>
+      <div class="ubi">${v.ubicacion_finca||""}${v.descripcion ? " — "+v.descripcion : ""}</div>
+      <div class="rank">${v._prom ? estrellasHtml(Math.round(v._prom)) + " " + v._prom + " (" + v._resenas.length + " reseña" + (v._resenas.length===1?"":"s") + ")" : "Sin reseñas todavía"}</div>
+      ${v._resenas.slice(0,2).map(r => `<div class="resena">${estrellasHtml(r.calificacion)}${r.comentario ? " — "+r.comentario : ""}</div>`).join("")}
+      <div class="resena-form">
+        ${!sesionUsuario ? `<p style="font-size:.82rem;color:#7a7263">Inicie sesión como comprador aprobado para dejar una reseña.</p>` :
+          yaCalifico ? `<p style="font-size:.82rem;color:#7a7263">Ya dejó su reseña de este vendedor. ¡Gracias!</p>` :
+          !puedeCalificar ? `<p style="font-size:.82rem;color:#7a7263">Debe ser un comprador aprobado por el rancho para calificar.</p>` :
+          `<select id="rate-${v.id}"><option value="5">★★★★★ Excelente</option><option value="4">★★★★ Muy bueno</option><option value="3">★★★ Regular</option><option value="2">★★ Malo</option><option value="1">★ Muy malo</option></select>
+           <textarea id="coment-${v.id}" rows="2" placeholder="Cuéntenos su experiencia (opcional)"></textarea>
+           <button class="btn btn-fierro" onclick="enviarResena('${v.id}')">Enviar reseña</button>
+           <div class="puja-msg" id="resena-msg-${v.id}"></div>`}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.enviarResena = async (vendedorId) => {
+  const calificacion = Number(document.getElementById("rate-"+vendedorId).value);
+  const comentario = document.getElementById("coment-"+vendedorId).value.trim();
+  const msgEl = document.getElementById("resena-msg-"+vendedorId);
+  const {error} = await db.from("resenas_vendedor").insert({
+    vendedor_id: vendedorId, comprador_id: sesionUsuario.id, calificacion, comentario: comentario || null
+  });
+  if(error){ msgEl.textContent = "Error: " + error.message; msgEl.className = "puja-msg err"; return; }
+  await cargarVendedoresPublicos();
 };
 
 $("#buscador").addEventListener("input", e => { busqueda = e.target.value; pintar(); });

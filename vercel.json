@@ -1,6 +1,8 @@
 {
   "cleanUrls": true,
   "headers": [
-    { "source": "/admin.html", "headers": [ { "key": "X-Robots-Tag", "value": "noindex" } ] }
+    { "source": "/admin.html", "headers": [ { "key": "X-Robots-Tag", "value": "noindex" } ] },
+    { "source": "/ruedo.html", "headers": [ { "key": "X-Robots-Tag", "value": "noindex" } ] },
+    { "source": "/factura.html", "headers": [ { "key": "X-Robots-Tag", "value": "noindex" } ] }
   ]
 }

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruedo — Rancho Morolica</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Bevan&family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--monte:#24402B;--cuero:#6B3F23;--fierro:#C8891A;--hueso:#F3EDDE;--carbon:#1C1A16;--blanco:#FFFDF7;--rojo:#A33B2A;--ok:#2e7d46}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Archivo',sans-serif;background:var(--monte);color:var(--hueso);min-height:100vh}
+.top{background:var(--monte-osc,#182D1E);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;font-family:'Bevan',serif;letter-spacing:1px}
+.wrap{max-width:520px;margin:0 auto;padding:18px}
+.tarjeta{background:var(--blanco);color:var(--carbon);border-radius:12px;padding:22px;box-shadow:0 3px 14px rgba(0,0,0,.2);margin-bottom:16px}
+label{display:block;font-weight:600;font-size:.85rem;margin:12px 0 5px;color:#4c463c}
+input,select{width:100%;padding:14px;border:2px solid #d5cbb2;border-radius:8px;font-family:'Archivo',sans-serif;font-size:1.1rem;background:#fff}
+.btn{width:100%;padding:18px;border:none;border-radius:8px;font-weight:800;font-size:1.15rem;cursor:pointer;margin-top:16px;font-family:'Archivo',sans-serif}
+.btn-v{background:var(--monte);color:#fff}
+.btn-f{background:var(--fierro);color:var(--carbon)}
+.btn:disabled{opacity:.5}
+.msg{padding:12px;border-radius:8px;margin-top:12px;font-size:.9rem;display:none}
+.msg.ok{background:#dff2e4;color:var(--ok);display:block}
+.msg.err{background:#fde3dd;color:var(--rojo);display:block}
+.lote-nom{font-family:'Bevan',serif;color:var(--monte);font-size:1.3rem;margin-bottom:4px}
+.lote-specs{font-size:.9rem;color:#5c554a;margin-bottom:14px}
+.precio-actual{text-align:center;padding:16px;background:var(--hueso);border-radius:8px;margin-bottom:6px}
+.precio-actual span{font-size:.78rem;text-transform:uppercase;letter-spacing:1px;color:#7a7263;display:block}
+.precio-actual b{font-family:'Bevan',serif;font-size:2.4rem;color:var(--cuero)}
+.ganador{text-align:center;font-size:.9rem;color:var(--monte);font-weight:700;margin-bottom:10px}
+.historial{margin-top:14px;font-size:.85rem;max-height:160px;overflow-y:auto}
+.historial div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #e4dcc6}
+.historial b{color:var(--monte)}
+.vacio{text-align:center;color:#7a7263;padding:30px 0}
+.oculto{display:none}
+</style>
+</head>
+<body>
+<div class="top"><span>RM · Ruedo</span><a href="admin.html" style="color:var(--fierro);font-family:'Archivo',sans-serif;font-size:.8rem;text-decoration:none">← Panel</a></div>
+<div class="wrap">
+
+  <div class="tarjeta" id="sec-login">
+    <h2 style="font-family:'Bevan',serif;color:var(--monte);margin-bottom:14px">Iniciar sesión</h2>
+    <label>Correo</label><input id="log-email" type="email" autocomplete="email">
+    <label>Contraseña</label><input id="log-pass" type="password" autocomplete="current-password">
+    <button class="btn btn-v" id="btn-entrar">Entrar</button>
+    <div class="msg" id="log-msg"></div>
+  </div>
+
+  <div class="tarjeta oculto" id="sec-no-admin">
+    <p>Esta cuenta no tiene permisos de administrador.</p>
+  </div>
+
+  <div class="tarjeta oculto" id="sec-ruedo">
+    <div id="contenido-lote"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const CONFIG = {
+  SUPABASE_URL: "https://kjcvlgfgqvwfjgcsqbhu.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_mKwvZz9rw4n0f30RBqbGFw_dwBBqSdw"
+};
+const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const $ = s => document.querySelector(s);
+const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
+const fmtL = n => "L " + Number(n).toLocaleString("es-HN");
+
+let subastaId = null, loteVivo = null, historial = [];
+
+async function sesion(){
+  const {data:{session}} = await db.auth.getSession();
+  if(!session){
+    $("#sec-login").classList.remove("oculto");
+    $("#sec-no-admin").classList.add("oculto");
+    $("#sec-ruedo").classList.add("oculto");
+    return;
+  }
+  $("#sec-login").classList.add("oculto");
+  const {data:perfil} = await db.from("perfiles").select("es_admin").eq("id", session.user.id).maybeSingle();
+  if(!perfil || !perfil.es_admin){
+    $("#sec-no-admin").classList.remove("oculto");
+    $("#sec-ruedo").classList.add("oculto");
+    return;
+  }
+  $("#sec-no-admin").classList.add("oculto");
+  $("#sec-ruedo").classList.remove("oculto");
+  iniciar();
+}
+
+$("#btn-entrar").onclick = async () => {
+  const {error} = await db.auth.signInWithPassword({email:$("#log-email").value.trim(), password:$("#log-pass").value});
+  if(error) return msg("#log-msg","Correo o contraseña incorrectos.","err");
+  sesion();
+};
+
+async function iniciar(){
+  const {data} = await db.from("subastas_web").select("*").eq("activa", true).order("fecha").limit(1);
+  if(!data || !data.length){
+    $("#contenido-lote").innerHTML = "<p class='vacio'>No hay ninguna subasta activa ahora mismo.</p>";
+    return;
+  }
+  subastaId = data[0].id;
+  await cargarLote();
+  suscribir();
+}
+
+async function cargarLote(){
+  const {data} = await db.from("subasta_lotes").select("*").eq("subasta_id", subastaId).order("orden");
+  const nuevo = (data||[]).find(l => l.estado === "en_vivo") || null;
+  if(nuevo && (!loteVivo || nuevo.id !== loteVivo.id)){
+    const {data:hist} = await db.from("pujas").select("*").eq("lote_id", nuevo.id).order("created_at",{ascending:false}).limit(8);
+    historial = hist || [];
+  } else if(!nuevo){
+    historial = [];
+  }
+  loteVivo = nuevo;
+  render();
+}
+
+function suscribir(){
+  db.channel("ruedo-"+subastaId)
+    .on("postgres_changes",{event:"*",schema:"public",table:"subasta_lotes",filter:`subasta_id=eq.${subastaId}`}, () => cargarLote())
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"pujas"}, payload => {
+      if(loteVivo && payload.new.lote_id === loteVivo.id){
+        historial = [payload.new, ...historial].slice(0,8);
+        pintarHistorial();
+      }
+    })
+    .subscribe();
+}
+
+function siguienteMinimo(lote){
+  return (lote.precio_actual ?? (lote.precio_salida - lote.incremento)) + lote.incremento;
+}
+
+function pintarHistorial(){
+  const el = $("#historial");
+  if(!el) return;
+  el.innerHTML = historial.map(p => `<div><span>${p.comprador_nombre||"Comprador"}${p.es_presencial ? " (ruedo)" : " (en línea)"}</span><b>${fmtL(p.monto)}</b></div>`).join("");
+}
+
+function render(){
+  if(!loteVivo){
+    $("#contenido-lote").innerHTML = "<p class='vacio'>Ningún lote está \"en vivo\" ahora. Póngalo en vivo desde el panel de administración.</p>";
+    return;
+  }
+  const minimo = siguienteMinimo(loteVivo);
+  $("#contenido-lote").innerHTML = `
+    <div class="lote-nom">Lote ${loteVivo.lote} · ${loteVivo.categoria}</div>
+    <div class="lote-specs">${loteVivo.nombre||""} ${loteVivo.peso_kg ? "· "+loteVivo.peso_kg+" kg" : ""}</div>
+    <div class="precio-actual"><span>Precio actual</span><b id="precio-actual">${fmtL(loteVivo.precio_actual ?? loteVivo.precio_salida)}</b></div>
+    <div class="ganador">${loteVivo.ganador_nombre ? "Va ganando: "+loteVivo.ganador_nombre : "Sin pujas todavía"}</div>
+    <label>Monto de la puja física (L)</label>
+    <input id="monto-fisico" type="number" inputmode="numeric" value="${minimo}">
+    <label>Número/nombre del comprador presencial (opcional)</label>
+    <input id="nombre-fisico" type="text" placeholder="Comprador #12">
+    <button class="btn btn-f" id="btn-puja-fisica">Registrar puja física</button>
+    <div class="msg" id="puja-msg"></div>
+    <div class="historial" id="historial"></div>
+  `;
+  pintarHistorial();
+  $("#btn-puja-fisica").onclick = async () => {
+    const btn = $("#btn-puja-fisica");
+    const monto = Number($("#monto-fisico").value);
+    if(!monto) return msg("#puja-msg","Escriba un monto.","err");
+    btn.disabled = true; btn.textContent = "Enviando…";
+    const {error} = await db.rpc("hacer_puja_fisica", {
+      p_lote_id: loteVivo.id, p_monto: monto, p_nombre: $("#nombre-fisico").value.trim()
+    });
+    if(error) msg("#puja-msg", error.message, "err");
+    else msg("#puja-msg", "Puja registrada.", "ok");
+    btn.disabled = false; btn.textContent = "Registrar puja física";
+  };
+}
+
+sesion();
+</script>
+</body>
+</html>

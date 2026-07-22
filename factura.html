@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comprobante — Rancho Morolica</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Bevan&family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--monte:#24402B;--cuero:#6B3F23;--fierro:#C8891A;--hueso:#F3EDDE;--carbon:#1C1A16;--blanco:#FFFDF7;--rojo:#A33B2A}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Archivo',sans-serif;background:var(--hueso);color:var(--carbon);padding:24px}
+.hoja{max-width:640px;margin:0 auto;background:var(--blanco);border-radius:10px;box-shadow:0 3px 14px rgba(0,0,0,.1);padding:36px}
+.enc{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--fierro);padding-bottom:18px;margin-bottom:22px}
+.enc h1{font-family:'Bevan',serif;color:var(--monte);font-size:1.4rem}
+.enc p{font-size:.82rem;color:#5c554a;margin-top:4px}
+.num{text-align:right}
+.num b{font-family:'Bevan',serif;color:var(--fierro);font-size:1.1rem;display:block}
+.num span{font-size:.78rem;color:#7a7263}
+.fila{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed #d5cbb2;font-size:.92rem}
+.fila b{color:var(--monte)}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-top:18px;padding-top:14px;border-top:3px solid var(--carbon)}
+.total span{font-size:.85rem;text-transform:uppercase;letter-spacing:1px;color:#5c554a}
+.total b{font-family:'Bevan',serif;font-size:1.8rem;color:var(--cuero)}
+.pie{margin-top:30px;font-size:.8rem;color:#7a7263;text-align:center}
+.btn-imprimir{display:block;width:100%;margin-top:26px;padding:14px;border:none;border-radius:8px;background:var(--monte);color:#fff;font-weight:800;font-size:1rem;cursor:pointer;font-family:'Archivo',sans-serif}
+.err{color:var(--rojo);text-align:center;padding:40px 0}
+@media print{ body{background:#fff;padding:0} .hoja{box-shadow:none;max-width:none} .btn-imprimir{display:none} }
+</style>
+</head>
+<body>
+<div class="hoja" id="hoja">
+  <p style="text-align:center;color:#7a7263">Cargando comprobante…</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const CONFIG = {
+  SUPABASE_URL: "https://kjcvlgfgqvwfjgcsqbhu.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_mKwvZz9rw4n0f30RBqbGFw_dwBBqSdw"
+};
+const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const $ = s => document.querySelector(s);
+const fmtL = n => "L " + Number(n).toLocaleString("es-HN");
+const facturaId = new URLSearchParams(location.search).get("id");
+
+function mostrarError(msg){
+  $("#hoja").innerHTML = `<p class="err">${msg}</p>`;
+}
+
+async function cargar(){
+  if(!facturaId) return mostrarError("Falta el número de comprobante en el link.");
+  const {data: f, error} = await db.from("facturas").select("*").eq("id", facturaId).maybeSingle();
+  if(error || !f) return mostrarError("No se pudo cargar este comprobante. Si es el comprador, inicie sesión primero en la página con la cuenta con la que pujó.");
+
+  let descripcion = "Animal";
+  if(f.origen === "catalogo" && f.ganado_id){
+    const {data:g} = await db.from("ganado_web").select("lote,categoria,nombre,peso_kg").eq("id", f.ganado_id).maybeSingle();
+    if(g) descripcion = `Lote ${g.lote} · ${g.categoria}${g.nombre ? " — "+g.nombre : ""} · ${g.peso_kg||"—"} kg`;
+  } else if(f.origen === "subasta" && f.lote_id){
+    const {data:l} = await db.from("subasta_lotes").select("lote,categoria,nombre,peso_kg").eq("id", f.lote_id).maybeSingle();
+    if(l) descripcion = `Lote ${l.lote} · ${l.categoria}${l.nombre ? " — "+l.nombre : ""} · ${l.peso_kg||"—"} kg`;
+  }
+
+  let vendedorNombre = "Rancho Morolica (venta propia)";
+  if(f.vendedor_id){
+    const {data:v} = await db.from("vendedores").select("nombre_finca").eq("id", f.vendedor_id).maybeSingle();
+    if(v) vendedorNombre = "Consignado por " + v.nombre_finca;
+  }
+
+  const fecha = new Date(f.created_at).toLocaleDateString("es-HN", {weekday:"long", day:"numeric", month:"long", year:"numeric"});
+
+  $("#hoja").innerHTML = `
+    <div class="enc">
+      <div>
+        <h1>RANCHO MOROLICA</h1>
+        <p>Km 177, carretera a Catacamas · Juticalpa, Olancho, Honduras</p>
+        <p>${fecha}</p>
+      </div>
+      <div class="num">
+        <b>No. ${f.numero}</b>
+        <span>${f.origen === "subasta" ? "Subasta en vivo" : "Venta de catálogo"}</span>
+      </div>
+    </div>
+    <div class="fila"><span>Comprador</span><b>${f.comprador_nombre}</b></div>
+    ${f.comprador_telefono ? `<div class="fila"><span>Teléfono</span><b>${f.comprador_telefono}</b></div>` : ""}
+    <div class="fila"><span>Animal</span><b>${descripcion}</b></div>
+    <div class="fila"><span>Origen</span><b>${vendedorNombre}</b></div>
+    ${f.vendedor_id ? `<div class="fila"><span>Comisión del rancho</span><b>${f.comision_pct}% (${fmtL(f.comision_lps)})</b></div>` : ""}
+    <div class="total"><span>Total pagado</span><b>${fmtL(f.monto_lps)}</b></div>
+    <p class="pie">Este comprobante fue generado automáticamente por ranchomorolica.hn — Soli Deo Gloria</p>
+    <button class="btn-imprimir" onclick="window.print()">Imprimir / Guardar como PDF</button>
+  `;
+}
+cargar();
+</script>
+</body>
+</html>

@@ -55,6 +55,20 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <div class="msg" id="log-msg"></div>
   </div>
 
+  <!-- CONFIGURACIÓN DEL SITIO -->
+  <div class="tarjeta oculto-sec" id="sec-config">
+    <h2>Configuración del sitio</h2>
+    <label>Tipo de cambio (Lempiras por 1 USD)</label>
+    <input id="c-tipo-cambio" type="number" step="0.01" inputmode="decimal">
+    <label>Depósito de garantía para pujar (Lempiras)</label>
+    <input id="c-deposito" type="number" inputmode="numeric">
+    <label>Datos bancarios para el depósito (se muestran al comprador)</label>
+    <textarea id="c-datos-bancarios" rows="3" placeholder="Banco, número de cuenta, nombre del titular…"></textarea>
+    <button class="btn btn-v" id="btn-config">Guardar configuración</button>
+    <div class="msg" id="c-msg"></div>
+    <p style="font-size:.85rem;color:#7a7263;margin-top:10px"><a href="ruedo.html" target="_blank" style="color:var(--cuero)">Abrir panel del rematador (pujas físicas del ruedo) →</a></p>
+  </div>
+
   <!-- FORMULARIO ANIMAL -->
   <div class="tarjeta oculto-sec" id="sec-form">
     <h2 id="form-titulo">Agregar animal</h2>
@@ -80,6 +94,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <label>Foto (desde el teléfono)</label>
     <input id="a-foto" type="file" accept="image/*">
     <img id="foto-prev" alt="Vista previa">
+    <label>Vendedor</label>
+    <select id="a-vendedor"><option value="">Rancho Morolica (propio)</option></select>
     <div class="fila">
       <div><label><input type="checkbox" id="a-pub" checked style="width:auto;margin-right:6px">Publicado en la web</label></div>
       <div><label><input type="checkbox" id="a-vendido" style="width:auto;margin-right:6px">Marcado como vendido</label></div>
@@ -95,7 +111,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <input type="hidden" id="s-id">
     <label>Nombre</label><input id="s-nombre" placeholder="Subasta en línea — Agosto 2026">
     <label>Fecha y hora</label><input id="s-fecha" type="datetime-local">
-    <label>Descripción (link de Facebook Live, detalles)</label><textarea id="s-desc" rows="2"></textarea>
+    <label>Descripción (detalles para el público)</label><textarea id="s-desc" rows="2"></textarea>
+    <label>Link del video en vivo (Facebook Live o YouTube — se incrusta en la página)</label>
+    <input id="s-video" type="url" placeholder="https://www.facebook.com/.../videos/...">
     <label><input type="checkbox" id="s-activa" checked style="width:auto;margin-right:6px">Mostrar en la página</label>
     <button class="btn btn-f" id="btn-subasta">Guardar subasta</button>
     <div class="msg" id="s-msg"></div>
@@ -124,6 +142,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
       <div><label>Precio de salida (L) *</label><input id="l-salida" type="number" inputmode="numeric"></div>
       <div><label>Incremento mínimo (L)</label><input id="l-incremento" type="number" inputmode="numeric" value="500"></div>
     </div>
+    <label>Vendedor</label>
+    <select id="l-vendedor"><option value="">Rancho Morolica (propio)</option></select>
     <label>Foto</label>
     <input id="l-foto" type="file" accept="image/*">
     <img id="l-foto-prev" alt="Vista previa" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px;display:none">
@@ -139,10 +159,46 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <div id="lista"></div>
   </div>
 
+  <!-- VERIFICACIÓN KYC -->
+  <div class="tarjeta oculto-sec" id="sec-verificacion">
+    <h2>Verificación de compradores (<span id="total-pendientes-kyc">0</span> pendientes)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Revise la identidad de cada comprador antes de admitirlo. Solo después de aprobado y de pagar el depósito de garantía puede pujar en las subastas en vivo.</p>
+    <div id="lista-verificacion"></div>
+  </div>
+
+  <!-- DEPÓSITOS DE GARANTÍA -->
+  <div class="tarjeta oculto-sec" id="sec-depositos">
+    <h2>Depósitos de garantía (<span id="total-pendientes-dep">0</span> pendientes)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Comprobantes de depósito/transferencia que los compradores ya aprobados subieron. Confírmelos aquí después de verlos reflejados en su cuenta bancaria.</p>
+    <div id="lista-depositos"></div>
+  </div>
+
+  <!-- VENDEDORES EXTERNOS -->
+  <div class="tarjeta oculto-sec" id="sec-vendedores">
+    <h2>Vendedores externos</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Rancheros ajenos a Rancho Morolica que consignan su ganado para venderlo aquí, con su comisión.</p>
+    <input type="hidden" id="v-id">
+    <label>Nombre de contacto *</label><input id="v-nombre-contacto" placeholder="Juan Pérez">
+    <label>Teléfono</label><input id="v-telefono" placeholder="504...">
+    <label>Nombre de la finca *</label><input id="v-finca" placeholder="Finca El Roble">
+    <label>Ubicación de la finca</label><input id="v-ubicacion" placeholder="Catacamas, Olancho">
+    <label>Descripción</label><textarea id="v-desc" rows="2"></textarea>
+    <div class="fila">
+      <div><label>Comisión (%)</label><input id="v-comision" type="number" step="0.1" value="4"></div>
+      <div><label>Estado</label>
+        <select id="v-estado"><option value="aprobado">Aprobado</option><option value="pendiente">Pendiente</option><option value="rechazado">Rechazado</option></select>
+      </div>
+    </div>
+    <button class="btn btn-f" id="btn-guardar-vendedor">Guardar vendedor</button>
+    <button class="btn btn-gris" id="btn-cancelar-vendedor" style="display:none">Cancelar edición</button>
+    <div class="msg" id="v-msg"></div>
+    <div id="lista-vendedores" style="margin-top:18px"></div>
+  </div>
+
   <!-- COMPRADORES -->
   <div class="tarjeta oculto-sec" id="sec-compradores">
-    <h2>Compradores registrados (<span id="total-compradores">0</span>)</h2>
-    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Personas que se registraron en la página para pujar en las subastas en vivo. Puede bloquear a alguien si es necesario; un comprador bloqueado no puede pujar.</p>
+    <h2>Todos los compradores registrados (<span id="total-compradores">0</span>)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Puede bloquear a alguien si es necesario; un comprador bloqueado no puede pujar aunque esté aprobado y con depósito pagado.</p>
     <div id="lista-compradores"></div>
   </div>
 
@@ -167,12 +223,14 @@ const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
 
+const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores"];
+
 async function sesion(){
   const {data:{session}} = await db.auth.getSession();
   if(!session){
     $("#sec-login").style.display = "block";
     $("#sec-no-admin").style.display = "none";
-    ["#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-compradores"].forEach(s=>$(s).style.display = "none");
+    SECCIONES_ADMIN.forEach(s=>$(s).style.display = "none");
     $("#btn-salir").style.display = "none";
     return;
   }
@@ -180,9 +238,17 @@ async function sesion(){
   $("#btn-salir").style.display = "block";
   const {data:perfil} = await db.from("perfiles").select("es_admin").eq("id", session.user.id).maybeSingle();
   const esAdmin = !!(perfil && perfil.es_admin);
-  ["#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-compradores"].forEach(s=>$(s).style.display = esAdmin ? "block" : "none");
+  SECCIONES_ADMIN.forEach(s=>$(s).style.display = esAdmin ? "block" : "none");
   $("#sec-no-admin").style.display = esAdmin ? "none" : "block";
-  if(esAdmin){ listar(); cargarSubasta(); cargarCompradores(); }
+  if(esAdmin){
+    await cargarConfig();
+    await cargarVendedores();
+    await listar();
+    await cargarSubasta();
+    await cargarCompradores();
+    await cargarVerificacion();
+    await cargarDepositos();
+  }
 }
 
 $("#btn-entrar").onclick = async () => {
@@ -207,34 +273,67 @@ async function subirFoto(archivo, lote){
   return db.storage.from("ganado-fotos").getPublicUrl(ruta).data.publicUrl;
 }
 
+async function urlPrivada(bucket, ruta){
+  if(!ruta) return null;
+  const {data} = await db.storage.from(bucket).createSignedUrl(ruta, 600);
+  return data ? data.signedUrl : null;
+}
+
+async function generarFactura({origen, ganado_id, lote_id, comprador_id, comprador_nombre, comprador_telefono, vendedor_id, monto_lps}){
+  const vendedor = vendedor_id ? (window._vendedores||[]).find(v=>v.id===vendedor_id) : null;
+  const comision_pct = vendedor ? Number(vendedor.comision_pct) || 0 : 0;
+  const comision_lps = Math.round(monto_lps * comision_pct) / 100;
+  const {data, error} = await db.from("facturas").insert({
+    origen, ganado_id: ganado_id || null, lote_id: lote_id || null,
+    comprador_id: comprador_id || null, comprador_nombre: comprador_nombre || "Comprador",
+    comprador_telefono: comprador_telefono || null, vendedor_id: vendedor_id || null,
+    monto_lps, comision_pct, comision_lps
+  }).select().single();
+  if(error){ alert("No se pudo generar la factura: " + error.message); return null; }
+  return data;
+}
+
 $("#btn-guardar").onclick = async () => {
   const lote = $("#a-lote").value.trim();
   const peso = Number($("#a-peso").value);
   if(!lote || !peso) return msg("#form-msg","Lote y peso son obligatorios.","err");
   $("#btn-guardar").disabled = true; $("#btn-guardar").textContent = "Guardando…";
   try{
+    const id = $("#a-id").value;
+    const yaEstabaVendido = id ? !!(window._datos||[]).find(x=>x.id===id)?.vendido : false;
     const reg = {
       lote, categoria: $("#a-cat").value, nombre: $("#a-nombre").value.trim(),
       peso_kg: peso, edad_meses: Number($("#a-edad").value) || null,
       precio_lps: Number($("#a-precio").value) || null,
       estado: $("#a-estado").value.trim(),
-      publicado: $("#a-pub").checked, vendido: $("#a-vendido").checked
+      publicado: $("#a-pub").checked, vendido: $("#a-vendido").checked,
+      vendedor_id: $("#a-vendedor").value || null
     };
     const archivo = $("#a-foto").files[0];
     if(archivo) reg.foto_url = await subirFoto(archivo, lote);
-    const id = $("#a-id").value;
-    const q = id ? db.from("ganado_web").update(reg).eq("id", id)
-                 : db.from("ganado_web").insert(reg);
-    const {error} = await q;
+    const q = id ? db.from("ganado_web").update(reg).eq("id", id).select().single()
+                 : db.from("ganado_web").insert(reg).select().single();
+    const {data, error} = await q;
     if(error) throw error;
     msg("#form-msg", id ? "Animal actualizado." : "Animal agregado al catálogo.","ok");
+    if(reg.vendido && !yaEstabaVendido){
+      const compradorNombre = prompt("Venta marcada. Nombre del comprador para generar la factura:", "");
+      if(compradorNombre){
+        const compradorTelefono = prompt("Teléfono del comprador (opcional):", "") || null;
+        const f = await generarFactura({
+          origen: "catalogo", ganado_id: data.id, comprador_nombre: compradorNombre,
+          comprador_telefono: compradorTelefono, vendedor_id: reg.vendedor_id, monto_lps: reg.precio_lps || 0
+        });
+        if(f) window.open("factura.html?id=" + f.id, "_blank");
+      }
+    }
     limpiar(); listar();
   }catch(e){ msg("#form-msg","Error: "+e.message,"err"); }
   $("#btn-guardar").disabled = false; $("#btn-guardar").textContent = "Guardar animal";
 };
 
 function limpiar(){
-  ["a-id","a-lote","a-nombre","a-peso","a-edad","a-precio","a-estado"].forEach(i=>$("#"+i).value="");
+  ["a-id","a-lote","a-nombre","a-peso","a-edad","a-precio","a-estado","a-vendedor"].forEach(i=>$("#"+i).value="");
   $("#a-foto").value=""; $("#foto-prev").style.display="none";
   $("#a-pub").checked = true; $("#a-vendido").checked = false;
   $("#form-titulo").textContent = "Agregar animal";
@@ -245,21 +344,30 @@ $("#btn-cancelar").onclick = limpiar;
 async function listar(){
   const {data, error} = await db.from("ganado_web").select("*").order("created_at",{ascending:false});
   if(error) return;
+  const {data:facturasData} = await db.from("facturas").select("id,ganado_id").eq("origen","catalogo");
+  const facturaPorGanado = {};
+  (facturasData||[]).forEach(f => { if(f.ganado_id) facturaPorGanado[f.ganado_id] = f.id; });
   $("#total").textContent = data.length;
-  $("#lista").innerHTML = data.map(a => `
+  $("#lista").innerHTML = data.map(a => {
+    const vendedor = (window._vendedores||[]).find(v=>v.id===a.vendedor_id);
+    const facturaId = facturaPorGanado[a.id];
+    return `
     <div class="lista-item">
       ${a.foto_url ? `<img src="${a.foto_url}" alt="">` : `<div class="mini">RM</div>`}
       <div class="li-info">
         <b>Lote ${a.lote} · ${a.categoria}</b>
         ${a.peso_kg} kg · ${a.precio_lps ? "L "+Number(a.precio_lps).toLocaleString("es-HN") : "Consultar"}<br>
+        ${vendedor ? `Vendedor: ${vendedor.nombre_finca}<br>` : ""}
         <span class="pill ${a.publicado?'pub':'oculto'}">${a.publicado?'Publicado':'Oculto'}</span>
         ${a.vendido?'<span class="pill vend">Vendido</span>':''}
       </div>
       <div class="li-acciones">
         <button class="btn btn-chico btn-gris" onclick="editar('${a.id}')">Editar</button>
         <button class="btn btn-chico btn-rojo" onclick="borrar('${a.id}','${a.lote}')">Borrar</button>
+        ${facturaId ? `<button class="btn btn-chico btn-v" onclick="window.open('factura.html?id=${facturaId}','_blank')">Factura</button>` : ""}
       </div>
-    </div>`).join("") || "<p style='color:#7a7263'>Aún no hay animales. Agregue el primero arriba.</p>";
+    </div>`;
+  }).join("") || "<p style='color:#7a7263'>Aún no hay animales. Agregue el primero arriba.</p>";
   window._datos = data;
 }
 
@@ -270,6 +378,7 @@ window.editar = id => {
   $("#a-nombre").value=a.nombre||""; $("#a-peso").value=a.peso_kg; $("#a-edad").value=a.edad_meses||"";
   $("#a-precio").value=a.precio_lps||""; $("#a-estado").value=a.estado||"";
   $("#a-pub").checked=a.publicado; $("#a-vendido").checked=a.vendido;
+  $("#a-vendedor").value = a.vendedor_id || "";
   if(a.foto_url){ $("#foto-prev").src=a.foto_url; $("#foto-prev").style.display="block"; }
   $("#form-titulo").textContent = "Editando lote " + a.lote;
   $("#btn-cancelar").style.display = "block";
@@ -292,6 +401,7 @@ async function cargarSubasta(){
     $("#s-id").value=s.id; $("#s-nombre").value=s.nombre;
     $("#s-fecha").value = s.fecha ? new Date(new Date(s.fecha).getTime()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16) : "";
     $("#s-desc").value=s.descripcion||""; $("#s-activa").checked=s.activa;
+    $("#s-video").value = s.video_url || "";
     cargarLotesAdmin();
   }
 }
@@ -301,6 +411,7 @@ $("#btn-subasta").onclick = async () => {
     nombre: $("#s-nombre").value.trim(),
     fecha: $("#s-fecha").value ? new Date($("#s-fecha").value).toISOString() : null,
     descripcion: $("#s-desc").value.trim(),
+    video_url: $("#s-video").value.trim() || null,
     activa: $("#s-activa").checked
   };
   if(!reg.nombre || !reg.fecha) return msg("#s-msg","Nombre y fecha son obligatorios.","err");
@@ -322,12 +433,15 @@ async function cargarLotesAdmin(){
   const {data} = await db.from("subasta_lotes").select("*").eq("subasta_id", subastaIdActual).order("orden");
   window._lotes = data || [];
   $("#l-orden").value = window._lotes.length + 1;
-  $("#lista-lotes").innerHTML = window._lotes.map(l => `
+  $("#lista-lotes").innerHTML = window._lotes.map(l => {
+    const vendedor = (window._vendedores||[]).find(v=>v.id===l.vendedor_id);
+    return `
     <div class="lista-item">
       ${l.foto_url ? `<img src="${l.foto_url}" alt="">` : `<div class="mini">RM</div>`}
       <div class="li-info">
         <b>#${l.orden} · Lote ${l.lote} · ${l.categoria}</b>
         Salida: L ${Number(l.precio_salida).toLocaleString("es-HN")}${l.precio_actual ? ` · Actual: L ${Number(l.precio_actual).toLocaleString("es-HN")} (${l.ganador_nombre||"—"})` : ""}<br>
+        ${vendedor ? `Vendedor: ${vendedor.nombre_finca}<br>` : ""}
         <span class="pill ${l.estado==='en_vivo'?'vend':l.estado==='vendido'?'pub':'oculto'}">${l.estado}</span>
       </div>
       <div class="li-acciones">
@@ -336,7 +450,8 @@ async function cargarLotesAdmin(){
         <button class="btn btn-chico btn-gris" onclick="editarLote('${l.id}')">Editar</button>
         <button class="btn btn-chico btn-rojo" onclick="borrarLote('${l.id}')">Borrar</button>
       </div>
-    </div>`).join("") || "<p style='color:#7a7263'>Aún no hay lotes. Agregue el primero arriba.</p>";
+    </div>`;
+  }).join("") || "<p style='color:#7a7263'>Aún no hay lotes. Agregue el primero arriba.</p>";
 }
 
 window.ponerEnVivo = async (id) => {
@@ -346,7 +461,17 @@ window.ponerEnVivo = async (id) => {
 };
 
 window.cerrarLote = async (id, vendido) => {
+  const lote = (window._lotes||[]).find(x=>x.id===id);
   await db.from("subasta_lotes").update({estado: vendido ? "vendido" : "cerrado"}).eq("id", id);
+  if(vendido && lote){
+    const monto = lote.precio_actual || lote.precio_salida;
+    const f = await generarFactura({
+      origen: "subasta", lote_id: id, comprador_id: lote.ganador_id || null,
+      comprador_nombre: lote.ganador_nombre || "Comprador presencial",
+      vendedor_id: lote.vendedor_id, monto_lps: monto
+    });
+    if(f) window.open("factura.html?id=" + f.id, "_blank");
+  }
   cargarLotesAdmin();
 };
 
@@ -356,6 +481,7 @@ window.editarLote = id => {
   $("#l-id").value=l.id; $("#l-orden").value=l.orden; $("#l-lote").value=l.lote; $("#l-cat").value=l.categoria;
   $("#l-nombre").value=l.nombre||""; $("#l-peso").value=l.peso_kg||""; $("#l-edad").value=l.edad_meses||"";
   $("#l-salida").value=l.precio_salida; $("#l-incremento").value=l.incremento;
+  $("#l-vendedor").value = l.vendedor_id || "";
   if(l.foto_url){ $("#l-foto-prev").src=l.foto_url; $("#l-foto-prev").style.display="block"; }
   $("#btn-cancelar-lote").style.display = "block";
   window.scrollTo({top:0, behavior:"smooth"});
@@ -375,7 +501,7 @@ $("#l-foto").onchange = e => {
 };
 
 function limpiarLote(){
-  ["l-id","l-lote","l-nombre","l-peso","l-edad","l-salida"].forEach(i=>$("#"+i).value="");
+  ["l-id","l-lote","l-nombre","l-peso","l-edad","l-salida","l-vendedor"].forEach(i=>$("#"+i).value="");
   $("#l-orden").value = (window._lotes && window._lotes.length || 0) + 1;
   $("#l-incremento").value = 500;
   $("#l-foto").value=""; $("#l-foto-prev").style.display="none";
@@ -394,7 +520,8 @@ $("#btn-guardar-lote").onclick = async () => {
       subasta_id: subastaIdActual, orden: Number($("#l-orden").value) || 0, lote,
       categoria: $("#l-cat").value, nombre: $("#l-nombre").value.trim(),
       peso_kg: Number($("#l-peso").value) || null, edad_meses: Number($("#l-edad").value) || null,
-      precio_salida: salida, incremento: Number($("#l-incremento").value) || 500
+      precio_salida: salida, incremento: Number($("#l-incremento").value) || 500,
+      vendedor_id: $("#l-vendedor").value || null
     };
     const archivo = $("#l-foto").files[0];
     if(archivo) reg.foto_url = await subirFoto(archivo, "lote-"+lote);
@@ -408,11 +535,202 @@ $("#btn-guardar-lote").onclick = async () => {
   $("#btn-guardar-lote").disabled = false; $("#btn-guardar-lote").textContent = "Guardar lote";
 };
 
-/* ===== COMPRADORES REGISTRADOS ===== */
+/* ===== CONFIGURACIÓN DEL SITIO ===== */
+
+async function cargarConfig(){
+  const {data} = await db.from("config_sitio").select("*").maybeSingle();
+  if(data){
+    $("#c-tipo-cambio").value = data.tipo_cambio_lps_por_usd;
+    $("#c-deposito").value = data.deposito_garantia_lps;
+    $("#c-datos-bancarios").value = data.datos_bancarios;
+  }
+}
+
+$("#btn-config").onclick = async () => {
+  const reg = {
+    tipo_cambio_lps_por_usd: Number($("#c-tipo-cambio").value) || 26.5,
+    deposito_garantia_lps: Number($("#c-deposito").value) || 10000,
+    datos_bancarios: $("#c-datos-bancarios").value.trim(),
+    updated_at: new Date().toISOString()
+  };
+  const {error} = await db.from("config_sitio").update(reg).eq("id", true);
+  msg("#c-msg", error ? "Error: "+error.message : "Configuración guardada.", error ? "err" : "ok");
+};
+
+/* ===== VENDEDORES EXTERNOS ===== */
+
+function poblarSelectsVendedor(){
+  const opciones = `<option value="">Rancho Morolica (propio)</option>` +
+    (window._vendedores||[]).map(v => `<option value="${v.id}">${v.nombre_finca}${v.estado!=='aprobado' ? ' ('+v.estado+')' : ''}</option>`).join("");
+  $("#a-vendedor").innerHTML = opciones;
+  $("#l-vendedor").innerHTML = opciones;
+}
+
+async function cargarVendedores(){
+  const {data} = await db.from("vendedores").select("*").order("created_at",{ascending:false});
+  window._vendedores = data || [];
+  poblarSelectsVendedor();
+  const {data:resenas} = await db.from("resenas_vendedor").select("vendedor_id,calificacion");
+  const ranking = {};
+  (resenas||[]).forEach(r => {
+    if(!ranking[r.vendedor_id]) ranking[r.vendedor_id] = {suma:0, n:0};
+    ranking[r.vendedor_id].suma += r.calificacion; ranking[r.vendedor_id].n++;
+  });
+  $("#lista-vendedores").innerHTML = window._vendedores.map(v => {
+    const rk = ranking[v.id];
+    const prom = rk ? (rk.suma/rk.n).toFixed(1) : null;
+    return `<div class="lista-item">
+      <div class="mini">${(v.nombre_finca||"?").charAt(0).toUpperCase()}</div>
+      <div class="li-info">
+        <b>${v.nombre_finca}</b>
+        ${v.nombre_contacto} · ${v.telefono||"sin teléfono"} · Comisión ${v.comision_pct}%<br>
+        ${prom ? `★ ${prom} (${rk.n} reseña${rk.n===1?"":"s"})` : "Sin reseñas aún"}
+        <span class="pill ${v.estado==='aprobado'?'pub':v.estado==='rechazado'?'vend':'oculto'}">${v.estado}</span>
+      </div>
+      <div class="li-acciones">
+        <button class="btn btn-chico btn-gris" onclick="editarVendedor('${v.id}')">Editar</button>
+        <button class="btn btn-chico btn-rojo" onclick="borrarVendedor('${v.id}')">Borrar</button>
+      </div>
+    </div>`;
+  }).join("") || "<p style='color:#7a7263'>Aún no hay vendedores externos.</p>";
+}
+
+window.editarVendedor = id => {
+  const v = window._vendedores.find(x=>x.id===id);
+  if(!v) return;
+  $("#v-id").value=v.id; $("#v-nombre-contacto").value=v.nombre_contacto; $("#v-telefono").value=v.telefono||"";
+  $("#v-finca").value=v.nombre_finca; $("#v-ubicacion").value=v.ubicacion_finca||""; $("#v-desc").value=v.descripcion||"";
+  $("#v-comision").value=v.comision_pct; $("#v-estado").value=v.estado;
+  $("#btn-cancelar-vendedor").style.display = "block";
+  window.scrollTo({top:0, behavior:"smooth"});
+};
+
+function limpiarVendedor(){
+  ["v-id","v-nombre-contacto","v-telefono","v-finca","v-ubicacion","v-desc"].forEach(i=>$("#"+i).value="");
+  $("#v-comision").value = 4; $("#v-estado").value = "aprobado";
+  $("#btn-cancelar-vendedor").style.display = "none";
+}
+$("#btn-cancelar-vendedor").onclick = limpiarVendedor;
+
+window.borrarVendedor = async id => {
+  if(!confirm("¿Borrar este vendedor? Esto no borra sus animales, pero perderán la referencia.")) return;
+  await db.from("vendedores").delete().eq("id", id);
+  cargarVendedores();
+};
+
+$("#btn-guardar-vendedor").onclick = async () => {
+  const nombre_contacto = $("#v-nombre-contacto").value.trim();
+  const nombre_finca = $("#v-finca").value.trim();
+  if(!nombre_contacto || !nombre_finca) return msg("#v-msg","Nombre de contacto y finca son obligatorios.","err");
+  const reg = {
+    nombre_contacto, telefono: $("#v-telefono").value.trim(),
+    nombre_finca, ubicacion_finca: $("#v-ubicacion").value.trim(),
+    descripcion: $("#v-desc").value.trim(),
+    comision_pct: Number($("#v-comision").value) || 0,
+    estado: $("#v-estado").value
+  };
+  const id = $("#v-id").value;
+  const q = id ? db.from("vendedores").update(reg).eq("id", id) : db.from("vendedores").insert(reg);
+  const {error} = await q;
+  msg("#v-msg", error ? "Error: "+error.message : "Vendedor guardado.", error ? "err" : "ok");
+  if(!error){ limpiarVendedor(); cargarVendedores(); }
+};
+
+/* ===== VERIFICACIÓN KYC ===== */
+
+async function cargarVerificacion(){
+  const {data} = await db.from("perfiles").select("*").eq("es_admin", false)
+    .eq("estado_verificacion", "pendiente").not("identidad","is",null).order("created_at",{ascending:true});
+  const pendientes = data || [];
+  window._pendientesKyc = pendientes;
+  $("#total-pendientes-kyc").textContent = pendientes.length;
+  $("#lista-verificacion").innerHTML = pendientes.map(p => `
+    <div class="lista-item">
+      <div class="mini">${(p.nombre||"?").charAt(0).toUpperCase()}</div>
+      <div class="li-info">
+        <b>${p.nombre || "(sin nombre)"}</b>
+        Identidad: ${p.identidad||"—"} · Tel: ${p.telefono||"—"}<br>
+        ${p.direccion||"sin dirección"} ${p.estado_civil ? ("· "+p.estado_civil) : ""}
+      </div>
+      <div class="li-acciones">
+        <button class="btn btn-chico btn-gris" onclick="verDocumentos('${p.id}')">Ver ID</button>
+        <button class="btn btn-chico btn-v" onclick="revisarVerificacion('${p.id}',true)">Aprobar</button>
+        <button class="btn btn-chico btn-rojo" onclick="revisarVerificacion('${p.id}',false)">Rechazar</button>
+      </div>
+    </div>`).join("") || "<p style='color:#7a7263'>No hay verificaciones pendientes.</p>";
+}
+
+window.verDocumentos = async (id) => {
+  const p = (window._pendientesKyc||[]).find(x=>x.id===id) || (window._compradores||[]).find(x=>x.id===id);
+  if(!p) return;
+  const frente = await urlPrivada("kyc-documentos", p.foto_id_frente_url);
+  const dorso = await urlPrivada("kyc-documentos", p.foto_id_dorso_url);
+  if(!frente && !dorso) return alert("Este comprador no ha subido fotos de identidad todavía.");
+  if(frente) window.open(frente, "_blank");
+  if(dorso) window.open(dorso, "_blank");
+};
+
+window.revisarVerificacion = async (id, aprobado) => {
+  let motivo = null;
+  if(!aprobado) motivo = prompt("Motivo del rechazo (se muestra al comprador):", "") || null;
+  const {error} = await db.rpc("revisar_verificacion", {p_comprador_id:id, p_aprobado:aprobado, p_motivo:motivo});
+  if(error) return alert("Error: "+error.message);
+  cargarVerificacion(); cargarCompradores();
+};
+
+/* ===== DEPÓSITOS DE GARANTÍA ===== */
+
+async function cargarDepositos(){
+  const {data} = await db.from("depositos").select("*").eq("estado","pendiente").order("created_at",{ascending:true});
+  const deps = data || [];
+  window._depositos = deps;
+  $("#total-pendientes-dep").textContent = deps.length;
+  if(!deps.length){
+    $("#lista-depositos").innerHTML = "<p style='color:#7a7263'>No hay depósitos pendientes.</p>";
+    return;
+  }
+  const ids = [...new Set(deps.map(d=>d.comprador_id))];
+  const {data:perfilesData} = await db.from("perfiles").select("id,nombre,telefono").in("id", ids);
+  const nombres = {};
+  (perfilesData||[]).forEach(p => nombres[p.id] = p);
+  $("#lista-depositos").innerHTML = deps.map(d => {
+    const p = nombres[d.comprador_id] || {};
+    return `<div class="lista-item">
+      <div class="mini">${(p.nombre||"?").charAt(0).toUpperCase()}</div>
+      <div class="li-info">
+        <b>${p.nombre || "(sin nombre)"}</b>
+        ${p.telefono||"—"} · Monto declarado: L ${Number(d.monto).toLocaleString("es-HN")}
+      </div>
+      <div class="li-acciones">
+        <button class="btn btn-chico btn-gris" onclick="verComprobante('${d.id}')">Ver comprobante</button>
+        <button class="btn btn-chico btn-v" onclick="revisarDeposito('${d.id}',true)">Aprobar</button>
+        <button class="btn btn-chico btn-rojo" onclick="revisarDeposito('${d.id}',false)">Rechazar</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.verComprobante = async (id) => {
+  const d = (window._depositos||[]).find(x=>x.id===id);
+  if(!d) return;
+  const url = await urlPrivada("comprobantes-deposito", d.comprobante_url);
+  if(url) window.open(url, "_blank"); else alert("No se encontró el comprobante.");
+};
+
+window.revisarDeposito = async (id, aprobado) => {
+  let motivo = null;
+  if(!aprobado) motivo = prompt("Motivo del rechazo:", "") || null;
+  const {error} = await db.rpc("revisar_deposito", {p_deposito_id:id, p_aprobado:aprobado, p_motivo:motivo});
+  if(error) return alert("Error: "+error.message);
+  cargarDepositos(); cargarCompradores();
+};
+
+/* ===== TODOS LOS COMPRADORES ===== */
 
 async function cargarCompradores(){
   const {data} = await db.from("perfiles").select("*").eq("es_admin", false).order("created_at",{ascending:false});
   const lista = data || [];
+  window._compradores = lista;
   $("#total-compradores").textContent = lista.length;
   $("#lista-compradores").innerHTML = lista.map(p => `
     <div class="lista-item">
@@ -420,9 +738,12 @@ async function cargarCompradores(){
       <div class="li-info">
         <b>${p.nombre || "(sin nombre)"}</b>
         ${p.telefono || "sin teléfono"}<br>
+        <span class="pill ${p.estado_verificacion==='aprobado'?'pub':p.estado_verificacion==='rechazado'?'vend':'oculto'}">${p.estado_verificacion}</span>
+        <span class="pill ${p.deposito_pagado?'pub':'oculto'}">${p.deposito_pagado?'Depósito OK':'Sin depósito'}</span>
         <span class="pill ${p.bloqueado?'vend':'pub'}">${p.bloqueado?'Bloqueado':'Activo'}</span>
       </div>
       <div class="li-acciones">
+        <button class="btn btn-chico btn-gris" onclick="verDocumentos('${p.id}')">Ver ID</button>
         <button class="btn btn-chico ${p.bloqueado?'btn-v':'btn-rojo'}" onclick="toggleBloqueo('${p.id}', ${!p.bloqueado})">${p.bloqueado?'Desbloquear':'Bloquear'}</button>
       </div>
     </div>`).join("") || "<p style='color:#7a7263'>Aún no hay compradores registrados.</p>";
