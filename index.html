@@ -8,6 +8,8 @@
 <meta name="keywords" content="ganado en venta Honduras, subasta ganadera, comprar ganado en línea, toros en venta, vacas preñadas Honduras, Rancho Morolica, Juticalpa, Olancho, ganado Olancho">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <link rel="canonical" href="https://ranchomorolica.hn/">
+<link rel="icon" type="image/png" href="favicon-64.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
 <!-- Open Graph -->
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_HN">
@@ -15,6 +17,7 @@
 <meta property="og:title" content="Rancho Morolica — Ganado en Venta en Honduras">
 <meta property="og:description" content="Catálogo de ganado con fotos, peso y precio. Subastas desde 1986 en Juticalpa, Olancho. Escríbenos por WhatsApp.">
 <meta property="og:url" content="https://ranchomorolica.hn/">
+<meta property="og:image" content="https://ranchomorolica.hn/logo.png">
 <meta name="twitter:card" content="summary_large_image">
 <!-- JSON-LD SEO -->
 <script type="application/ld+json">
@@ -25,6 +28,8 @@
   "description": "Subasta ganadera y venta de ganado en línea. Toros, vacas, vaquillas, terneros y novillos.",
   "foundingDate": "1986",
   "url": "https://ranchomorolica.hn",
+  "logo": "https://ranchomorolica.hn/logo.png",
+  "image": "https://ranchomorolica.hn/logo.png",
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "Km 177 Carretera a Catacamas",
@@ -72,6 +77,7 @@ a{color:inherit}
 nav{background:var(--monte);position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(0,0,0,.25)}
 nav .wrap{display:flex;align-items:center;justify-content:space-between;padding-top:12px;padding-bottom:12px}
 .brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--hueso)}
+.logo-nav{width:50px;height:50px;object-fit:contain;flex-shrink:0}
 .fierro-mark{width:46px;height:46px;border:3px solid var(--fierro);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Bevan',serif;color:var(--fierro);font-size:1.05rem;transform:rotate(-4deg);flex-shrink:0}
 .brand-txt b{display:block;font-size:1.05rem;letter-spacing:1px}
 .brand-txt span{font-size:.7rem;opacity:.8;letter-spacing:2px;text-transform:uppercase}
@@ -266,7 +272,7 @@ footer a:hover{color:var(--fierro)}
 <nav>
   <div class="wrap">
     <a class="brand" href="#">
-      <span class="fierro-mark">RM</span>
+      <img class="logo-nav" src="logo.png" alt="Rancho Morolica">
       <span class="brand-txt"><b>RANCHO MOROLICA</b><span>Subasta ganadera · 1986</span></span>
     </a>
     <button class="menu-btn" aria-label="Abrir menú" onclick="document.querySelector('.navlinks').classList.toggle('open')">☰</button>

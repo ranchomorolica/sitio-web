@@ -5,13 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Comprobante — Rancho Morolica</title>
 <meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="favicon-64.png">
 <link href="https://fonts.googleapis.com/css2?family=Bevan&family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 :root{--monte:#24402B;--cuero:#6B3F23;--fierro:#C8891A;--hueso:#F3EDDE;--carbon:#1C1A16;--blanco:#FFFDF7;--rojo:#A33B2A}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Archivo',sans-serif;background:var(--hueso);color:var(--carbon);padding:24px}
 .hoja{max-width:640px;margin:0 auto;background:var(--blanco);border-radius:10px;box-shadow:0 3px 14px rgba(0,0,0,.1);padding:36px}
-.enc{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--fierro);padding-bottom:18px;margin-bottom:22px}
+.enc{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:3px solid var(--fierro);padding-bottom:18px;margin-bottom:22px}
+.enc-marca{display:flex;align-items:center;gap:14px}
+.enc-marca img{width:56px;height:56px;object-fit:contain;flex-shrink:0}
 .enc h1{font-family:'Bevan',serif;color:var(--monte);font-size:1.4rem}
 .enc p{font-size:.82rem;color:#5c554a;margin-top:4px}
 .num{text-align:right}
@@ -72,10 +75,13 @@ async function cargar(){
 
   $("#hoja").innerHTML = `
     <div class="enc">
-      <div>
-        <h1>RANCHO MOROLICA</h1>
-        <p>Km 177, carretera a Catacamas · Juticalpa, Olancho, Honduras</p>
-        <p>${fecha}</p>
+      <div class="enc-marca">
+        <img src="logo.png" alt="Rancho Morolica">
+        <div>
+          <h1>RANCHO MOROLICA</h1>
+          <p>Km 177, carretera a Catacamas · Juticalpa, Olancho, Honduras</p>
+          <p>${fecha}</p>
+        </div>
       </div>
       <div class="num">
         <b>No. ${f.numero}</b>

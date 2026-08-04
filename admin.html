@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Rancho Morolica</title>
 <meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="favicon-64.png">
 <link href="https://fonts.googleapis.com/css2?family=Bevan&family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 :root{--monte:#24402B;--cuero:#6B3F23;--fierro:#C8891A;--hueso:#F3EDDE;--carbon:#1C1A16;--blanco:#FFFDF7;--rojo:#A33B2A;--ok:#2e7d46}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Archivo',sans-serif;background:var(--hueso);color:var(--carbon);padding-bottom:80px}
-.top{background:var(--monte);color:var(--hueso);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
+.top{background:var(--monte);color:var(--hueso);padding:10px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
+.top .marca{display:flex;align-items:center;gap:10px}
+.top img{width:34px;height:34px;object-fit:contain}
 .top b{font-family:'Bevan',serif;letter-spacing:1px}
 .wrap{max-width:760px;margin:0 auto;padding:18px}
 .tarjeta{background:var(--blanco);border-radius:10px;padding:22px;box-shadow:0 3px 12px rgba(0,0,0,.08);margin-bottom:18px}
@@ -43,7 +46,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
 </style>
 </head>
 <body>
-<div class="top"><b>RM · Panel</b><button class="btn btn-chico btn-gris" id="btn-salir" style="display:none">Salir</button></div>
+<div class="top"><span class="marca"><img src="logo.png" alt="Rancho Morolica"><b>Panel</b></span><button class="btn btn-chico btn-gris" id="btn-salir" style="display:none">Salir</button></div>
 <div class="wrap">
 
   <!-- LOGIN -->
