@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin.html
 Disallow: /ruedo.html
 Disallow: /factura.html
-Sitemap: https://ranchomorolica.hn/sitemap.xml
+Sitemap: https://ranchomorolica.com/sitemap.xml

@@ -94,7 +94,7 @@ async function cargar(){
     <div class="fila"><span>Origen</span><b>${vendedorNombre}</b></div>
     ${f.vendedor_id ? `<div class="fila"><span>Comisión del rancho</span><b>${f.comision_pct}% (${fmtL(f.comision_lps)})</b></div>` : ""}
     <div class="total"><span>Total pagado</span><b>${fmtL(f.monto_lps)}</b></div>
-    <p class="pie">Este comprobante fue generado automáticamente por ranchomorolica.hn — Soli Deo Gloria</p>
+    <p class="pie">Este comprobante fue generado automáticamente por ranchomorolica.com — Soli Deo Gloria</p>
     <button class="btn-imprimir" onclick="window.print()">Imprimir / Guardar como PDF</button>
   `;
 }

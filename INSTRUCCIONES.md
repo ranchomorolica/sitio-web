@@ -51,17 +51,15 @@ Abra `index.html` y `admin.html` y busque la sección `CONFIG` (está al inicio 
 
 💡 Para evitar el problema de despliegue que tuvo antes: cada vez que cambie un archivo en GitHub, verifique en Vercel → Deployments que aparezca un deployment nuevo con la hora correcta. Si no aparece, en Vercel → Settings → Git reconecte el repositorio.
 
-## PASO 4 — Dominio (15 min + espera)
+## PASO 4 — Dominio ✅ (ya hecho)
 
-1. **ranchomorolica.com**: cómprelo en Namecheap (~$12/año). **ranchomorolica.hn**: se registra en **nic.hn** (Registro de Dominios de Honduras, ~$50/año).
-2. En Vercel → su proyecto → **Settings → Domains** → agregue el dominio. Vercel le indica los registros DNS (un registro A y un CNAME) que debe poner donde compró el dominio.
-3. Configure el `.com` para redirigir al `.hn` (o al revés — lo importante es tener los dos).
+Se compró **ranchomorolica.com** en Namecheap y quedó conectado en Vercel → Settings → Domains (registro A en `@` apuntando a `216.198.79.1`). Si más adelante también quiere `ranchomorolica.hn` como respaldo, es opcional — no es necesario para que la página funcione.
 
 ## PASO 5 — Aparecer en Google (10 min)
 
 1. Entre a **search.google.com/search-console** con su cuenta de Google.
 2. Agregue su dominio y verifíquelo (Vercel facilita la verificación por DNS).
-3. En **Sitemaps**, envíe: `https://ranchomorolica.hn/sitemap.xml`
+3. En **Sitemaps**, envíe: `https://ranchomorolica.com/sitemap.xml`
 4. En **Inspección de URLs**, pegue su página principal y toque **Solicitar indexación**.
 5. Refuerzo gratis y potente: cree el perfil de **Google Business Profile** (business.google.com) de Rancho Morolica con la ubicación Km 177, fotos del ruedo y el link a la página. Eso lo pone en Google Maps y en las búsquedas locales de inmediato.
 6. Ponga el link de la página en la bio de TikTok, Facebook e Instagram, y menciónelo en sus videos: los clics desde redes le dicen a Google que la página es real y activa.
