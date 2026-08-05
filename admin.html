@@ -43,6 +43,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
 .pill.vend{background:#fde3dd;color:var(--rojo)}
 #foto-prev{width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-top:8px;display:none}
 .oculto-sec{display:none}
+.tabla-simple{width:100%;border-collapse:collapse;font-size:.88rem}
+.tabla-simple th,.tabla-simple td{text-align:left;padding:8px 6px;border-bottom:1px dashed #d5cbb2}
+.tabla-simple th{color:var(--monte);font-size:.75rem;text-transform:uppercase;letter-spacing:.5px}
+.tabla-simple tr.total-fila td{font-weight:800;border-top:2px solid var(--carbon);border-bottom:none}
+.contactos{display:flex;gap:8px;margin-top:4px}
+.contactos a{width:30px;height:30px;border-radius:6px;background:var(--hueso);display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:.9rem}
 </style>
 </head>
 <body>
@@ -182,7 +188,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Rancheros ajenos a Rancho Morolica que consignan su ganado para venderlo aquí, con su comisión.</p>
     <input type="hidden" id="v-id">
     <label>Nombre de contacto *</label><input id="v-nombre-contacto" placeholder="Juan Pérez">
-    <label>Teléfono</label><input id="v-telefono" placeholder="504...">
+    <div class="fila">
+      <div><label>Teléfono</label><input id="v-telefono" placeholder="504..."></div>
+      <div><label>Correo</label><input id="v-correo" type="email" placeholder="correo@ejemplo.com"></div>
+    </div>
     <label>Nombre de la finca *</label><input id="v-finca" placeholder="Finca El Roble">
     <label>Ubicación de la finca</label><input id="v-ubicacion" placeholder="Catacamas, Olancho">
     <label>Descripción</label><textarea id="v-desc" rows="2"></textarea>
@@ -195,14 +204,24 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <button class="btn btn-f" id="btn-guardar-vendedor">Guardar vendedor</button>
     <button class="btn btn-gris" id="btn-cancelar-vendedor" style="display:none">Cancelar edición</button>
     <div class="msg" id="v-msg"></div>
-    <div id="lista-vendedores" style="margin-top:18px"></div>
+    <button class="btn btn-gris" id="btn-csv-vendedores" style="margin-top:18px">Descargar directorio de vendedores (CSV)</button>
+    <div id="lista-vendedores" style="margin-top:14px"></div>
   </div>
 
   <!-- COMPRADORES -->
   <div class="tarjeta oculto-sec" id="sec-compradores">
-    <h2>Todos los compradores registrados (<span id="total-compradores">0</span>)</h2>
-    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Puede bloquear a alguien si es necesario; un comprador bloqueado no puede pujar aunque esté aprobado y con depósito pagado.</p>
-    <div id="lista-compradores"></div>
+    <h2>Directorio de compradores (<span id="total-compradores">0</span>)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Puede bloquear a alguien si es necesario; un comprador bloqueado no puede pujar aunque esté aprobado y con depósito pagado. Use los íconos para escribirle, llamarlo o mandarle correo directo, o descargue el directorio completo.</p>
+    <button class="btn btn-gris" id="btn-csv-compradores">Descargar directorio de compradores (CSV)</button>
+    <div id="lista-compradores" style="margin-top:14px"></div>
+  </div>
+
+  <!-- INFORME DE VENTAS -->
+  <div class="tarjeta oculto-sec" id="sec-ventas">
+    <h2>Informe de ventas mensual</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Se calcula solo a partir de las facturas generadas al marcar animales o lotes como vendidos.</p>
+    <button class="btn btn-gris" id="btn-csv-ventas">Descargar todas las facturas (CSV)</button>
+    <div id="tabla-ventas" style="margin-top:14px"></div>
   </div>
 
   <!-- SIN PERMISOS -->
@@ -226,7 +245,7 @@ const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
 
-const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores"];
+const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
 
 async function sesion(){
   const {data:{session}} = await db.auth.getSession();
@@ -251,6 +270,7 @@ async function sesion(){
     await cargarCompradores();
     await cargarVerificacion();
     await cargarDepositos();
+    await cargarVentas();
   }
 }
 
@@ -589,6 +609,10 @@ async function cargarVendedores(){
         ${v.nombre_contacto} · ${v.telefono||"sin teléfono"} · Comisión ${v.comision_pct}%<br>
         ${prom ? `★ ${prom} (${rk.n} reseña${rk.n===1?"":"s"})` : "Sin reseñas aún"}
         <span class="pill ${v.estado==='aprobado'?'pub':v.estado==='rechazado'?'vend':'oculto'}">${v.estado}</span>
+        <div class="contactos">
+          ${v.telefono ? `<a href="tel:${v.telefono}" title="Llamar">📞</a><a href="https://wa.me/${v.telefono.replace(/\D/g,'')}" target="_blank" title="WhatsApp">💬</a>` : ""}
+          ${v.correo ? `<a href="mailto:${v.correo}" title="Correo">✉️</a>` : ""}
+        </div>
       </div>
       <div class="li-acciones">
         <button class="btn btn-chico btn-gris" onclick="editarVendedor('${v.id}')">Editar</button>
@@ -602,6 +626,7 @@ window.editarVendedor = id => {
   const v = window._vendedores.find(x=>x.id===id);
   if(!v) return;
   $("#v-id").value=v.id; $("#v-nombre-contacto").value=v.nombre_contacto; $("#v-telefono").value=v.telefono||"";
+  $("#v-correo").value=v.correo||"";
   $("#v-finca").value=v.nombre_finca; $("#v-ubicacion").value=v.ubicacion_finca||""; $("#v-desc").value=v.descripcion||"";
   $("#v-comision").value=v.comision_pct; $("#v-estado").value=v.estado;
   $("#btn-cancelar-vendedor").style.display = "block";
@@ -609,7 +634,7 @@ window.editarVendedor = id => {
 };
 
 function limpiarVendedor(){
-  ["v-id","v-nombre-contacto","v-telefono","v-finca","v-ubicacion","v-desc"].forEach(i=>$("#"+i).value="");
+  ["v-id","v-nombre-contacto","v-telefono","v-correo","v-finca","v-ubicacion","v-desc"].forEach(i=>$("#"+i).value="");
   $("#v-comision").value = 4; $("#v-estado").value = "aprobado";
   $("#btn-cancelar-vendedor").style.display = "none";
 }
@@ -626,7 +651,7 @@ $("#btn-guardar-vendedor").onclick = async () => {
   const nombre_finca = $("#v-finca").value.trim();
   if(!nombre_contacto || !nombre_finca) return msg("#v-msg","Nombre de contacto y finca son obligatorios.","err");
   const reg = {
-    nombre_contacto, telefono: $("#v-telefono").value.trim(),
+    nombre_contacto, telefono: $("#v-telefono").value.trim(), correo: $("#v-correo").value.trim() || null,
     nombre_finca, ubicacion_finca: $("#v-ubicacion").value.trim(),
     descripcion: $("#v-desc").value.trim(),
     comision_pct: Number($("#v-comision").value) || 0,
@@ -637,6 +662,29 @@ $("#btn-guardar-vendedor").onclick = async () => {
   const {error} = await q;
   msg("#v-msg", error ? "Error: "+error.message : "Vendedor guardado.", error ? "err" : "ok");
   if(!error){ limpiarVendedor(); cargarVendedores(); }
+};
+
+/* ===== EXPORTAR CSV ===== */
+
+function descargarCsv(nombreArchivo, filas){
+  if(!filas.length){ alert("No hay datos para exportar todavía."); return; }
+  const columnas = Object.keys(filas[0]);
+  const escapar = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+  const csv = [columnas.join(",")].concat(
+    filas.map(f => columnas.map(c => escapar(f[c])).join(","))
+  ).join("\n");
+  const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nombreArchivo;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+$("#btn-csv-vendedores").onclick = () => {
+  descargarCsv("vendedores-rancho-morolica.csv", (window._vendedores||[]).map(v => ({
+    finca: v.nombre_finca, contacto: v.nombre_contacto, telefono: v.telefono||"",
+    correo: v.correo||"", ubicacion: v.ubicacion_finca||"", comision_pct: v.comision_pct, estado: v.estado
+  })));
 };
 
 /* ===== VERIFICACIÓN KYC ===== */
@@ -740,10 +788,14 @@ async function cargarCompradores(){
       <div class="mini">${(p.nombre||"?").charAt(0).toUpperCase()}</div>
       <div class="li-info">
         <b>${p.nombre || "(sin nombre)"}</b>
-        ${p.telefono || "sin teléfono"}<br>
+        ${p.telefono || "sin teléfono"} ${p.correo?(" · "+p.correo):""}<br>
         <span class="pill ${p.estado_verificacion==='aprobado'?'pub':p.estado_verificacion==='rechazado'?'vend':'oculto'}">${p.estado_verificacion}</span>
         <span class="pill ${p.deposito_pagado?'pub':'oculto'}">${p.deposito_pagado?'Depósito OK':'Sin depósito'}</span>
         <span class="pill ${p.bloqueado?'vend':'pub'}">${p.bloqueado?'Bloqueado':'Activo'}</span>
+        <div class="contactos">
+          ${p.telefono ? `<a href="tel:${p.telefono}" title="Llamar">📞</a><a href="https://wa.me/${p.telefono.replace(/\D/g,'')}" target="_blank" title="WhatsApp">💬</a>` : ""}
+          ${p.correo ? `<a href="mailto:${p.correo}" title="Correo">✉️</a>` : ""}
+        </div>
       </div>
       <div class="li-acciones">
         <button class="btn btn-chico btn-gris" onclick="verDocumentos('${p.id}')">Ver ID</button>
@@ -755,6 +807,52 @@ async function cargarCompradores(){
 window.toggleBloqueo = async (id, bloquear) => {
   await db.from("perfiles").update({bloqueado: bloquear}).eq("id", id);
   cargarCompradores();
+};
+
+$("#btn-csv-compradores").onclick = () => {
+  descargarCsv("compradores-rancho-morolica.csv", (window._compradores||[]).map(p => ({
+    nombre: p.nombre||"", telefono: p.telefono||"", correo: p.correo||"",
+    estado_verificacion: p.estado_verificacion, deposito_pagado: p.deposito_pagado?"si":"no",
+    bloqueado: p.bloqueado?"si":"no"
+  })));
+};
+
+/* ===== INFORME DE VENTAS ===== */
+
+async function cargarVentas(){
+  const {data} = await db.from("facturas").select("*").order("created_at",{ascending:false});
+  const facturas = data || [];
+  window._facturas = facturas;
+  const porMes = {};
+  facturas.forEach(f => {
+    const clave = new Date(f.created_at).toLocaleDateString("es-HN",{year:"numeric",month:"long"});
+    if(!porMes[clave]) porMes[clave] = {n:0, monto:0, comision:0};
+    porMes[clave].n++; porMes[clave].monto += Number(f.monto_lps); porMes[clave].comision += Number(f.comision_lps);
+  });
+  const meses = Object.keys(porMes);
+  if(!meses.length){
+    $("#tabla-ventas").innerHTML = "<p style='color:#7a7263'>Todavía no hay ventas registradas.</p>";
+    return;
+  }
+  const totalN = facturas.length;
+  const totalMonto = facturas.reduce((s,f)=>s+Number(f.monto_lps),0);
+  const totalComision = facturas.reduce((s,f)=>s+Number(f.comision_lps),0);
+  $("#tabla-ventas").innerHTML = `
+    <div style="overflow-x:auto"><table class="tabla-simple">
+      <thead><tr><th>Mes</th><th>Ventas</th><th>Total (L)</th><th>Comisión (L)</th></tr></thead>
+      <tbody>
+        ${meses.map(m => `<tr><td>${m}</td><td>${porMes[m].n}</td><td>${porMes[m].monto.toLocaleString("es-HN")}</td><td>${porMes[m].comision.toLocaleString("es-HN")}</td></tr>`).join("")}
+        <tr class="total-fila"><td>Total</td><td>${totalN}</td><td>${totalMonto.toLocaleString("es-HN")}</td><td>${totalComision.toLocaleString("es-HN")}</td></tr>
+      </tbody>
+    </table></div>`;
+}
+
+$("#btn-csv-ventas").onclick = () => {
+  descargarCsv("ventas-rancho-morolica.csv", (window._facturas||[]).map(f => ({
+    fecha: new Date(f.created_at).toLocaleDateString("es-HN"), numero: f.numero, origen: f.origen,
+    comprador: f.comprador_nombre, telefono: f.comprador_telefono||"",
+    monto_lps: f.monto_lps, comision_pct: f.comision_pct, comision_lps: f.comision_lps
+  })));
 };
 
 sesion();

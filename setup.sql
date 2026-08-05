@@ -66,6 +66,7 @@ alter table public.perfiles add column if not exists foto_id_dorso_url text;
 alter table public.perfiles add column if not exists estado_verificacion text not null default 'pendiente';
 alter table public.perfiles add column if not exists motivo_rechazo text;
 alter table public.perfiles add column if not exists deposito_pagado boolean not null default false;
+alter table public.perfiles add column if not exists correo text;
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'perfiles_estado_verificacion_check') then
@@ -73,6 +74,13 @@ begin
       check (estado_verificacion in ('pendiente','aprobado','rechazado'));
   end if;
 end $$;
+
+-- Rellena el correo de compradores que ya se habían registrado
+-- antes de agregar esta columna (para nuevos registros lo llena
+-- el trigger de abajo). Seguro de correr varias veces.
+update public.perfiles p set correo = u.email
+from auth.users u
+where u.id = p.id and p.correo is null;
 
 -- Crea el perfil automáticamente cuando alguien se registra
 -- (comprador o admin). Nunca se marca es_admin=true ni
@@ -83,11 +91,12 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.perfiles (id, nombre, telefono)
+  insert into public.perfiles (id, nombre, telefono, correo)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'nombre', ''),
-    coalesce(new.raw_user_meta_data->>'telefono', '')
+    coalesce(new.raw_user_meta_data->>'telefono', ''),
+    new.email
   )
   on conflict (id) do nothing;
   return new;
@@ -121,6 +130,7 @@ create table if not exists public.vendedores (
   estado text not null default 'pendiente' check (estado in ('pendiente','aprobado','rechazado')),
   created_at timestamptz default now()
 );
+alter table public.vendedores add column if not exists correo text;
 
 -- Reseñas y ranking de esos vendedores, dejadas por compradores
 -- ya verificados.
