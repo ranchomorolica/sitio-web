@@ -187,12 +187,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <h2>Vendedores externos</h2>
     <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Rancheros ajenos a Rancho Morolica que consignan su ganado para venderlo aquí, con su comisión.</p>
     <input type="hidden" id="v-id">
-    <label>Nombre de contacto *</label><input id="v-nombre-contacto" placeholder="Juan Pérez">
+    <label>Nombre del vendedor *</label><input id="v-nombre-contacto" placeholder="Juan Pérez">
+    <div class="fila">
+      <div><label>Identidad</label><input id="v-identidad" placeholder="0801..."></div>
+      <div><label>Procedencia</label><input id="v-procedencia" placeholder="Catacamas"></div>
+    </div>
     <div class="fila">
       <div><label>Teléfono</label><input id="v-telefono" placeholder="504..."></div>
       <div><label>Correo</label><input id="v-correo" type="email" placeholder="correo@ejemplo.com"></div>
     </div>
-    <label>Nombre de la finca *</label><input id="v-finca" placeholder="Finca El Roble">
+    <label>Nombre de la finca (para mostrar en la página)</label><input id="v-finca" placeholder="Finca El Roble">
     <label>Ubicación de la finca</label><input id="v-ubicacion" placeholder="Catacamas, Olancho">
     <label>Descripción</label><textarea id="v-desc" rows="2"></textarea>
     <div class="fila">
@@ -303,8 +307,8 @@ async function urlPrivada(bucket, ruta){
 }
 
 async function generarFactura({origen, ganado_id, lote_id, comprador_id, comprador_nombre, comprador_telefono, vendedor_id, monto_lps}){
-  const vendedor = vendedor_id ? (window._vendedores||[]).find(v=>v.id===vendedor_id) : null;
-  const comision_pct = vendedor ? Number(vendedor.comision_pct) || 0 : 0;
+  const vendedor = vendedor_id ? (window._vendedores||[]).find(v=>String(v.id_vendedor)===String(vendedor_id)) : null;
+  const comision_pct = vendedor ? Number(vendedor.comision_pactada) || 0 : 0;
   const comision_lps = Math.round(monto_lps * comision_pct) / 100;
   const {data, error} = await db.from("facturas").insert({
     origen, ganado_id: ganado_id || null, lote_id: lote_id || null,
@@ -330,7 +334,7 @@ $("#btn-guardar").onclick = async () => {
       precio_lps: Number($("#a-precio").value) || null,
       estado: $("#a-estado").value.trim(),
       publicado: $("#a-pub").checked, vendido: $("#a-vendido").checked,
-      vendedor_id: $("#a-vendedor").value || null
+      vendedor_id: $("#a-vendedor").value ? Number($("#a-vendedor").value) : null
     };
     const archivo = $("#a-foto").files[0];
     if(archivo) reg.foto_url = await subirFoto(archivo, lote);
@@ -372,7 +376,7 @@ async function listar(){
   (facturasData||[]).forEach(f => { if(f.ganado_id) facturaPorGanado[f.ganado_id] = f.id; });
   $("#total").textContent = data.length;
   $("#lista").innerHTML = data.map(a => {
-    const vendedor = (window._vendedores||[]).find(v=>v.id===a.vendedor_id);
+    const vendedor = (window._vendedores||[]).find(v=>String(v.id_vendedor)===String(a.vendedor_id));
     const facturaId = facturaPorGanado[a.id];
     return `
     <div class="lista-item">
@@ -457,7 +461,7 @@ async function cargarLotesAdmin(){
   window._lotes = data || [];
   $("#l-orden").value = window._lotes.length + 1;
   $("#lista-lotes").innerHTML = window._lotes.map(l => {
-    const vendedor = (window._vendedores||[]).find(v=>v.id===l.vendedor_id);
+    const vendedor = (window._vendedores||[]).find(v=>String(v.id_vendedor)===String(l.vendedor_id));
     return `
     <div class="lista-item">
       ${l.foto_url ? `<img src="${l.foto_url}" alt="">` : `<div class="mini">RM</div>`}
@@ -544,7 +548,7 @@ $("#btn-guardar-lote").onclick = async () => {
       categoria: $("#l-cat").value, nombre: $("#l-nombre").value.trim(),
       peso_kg: Number($("#l-peso").value) || null, edad_meses: Number($("#l-edad").value) || null,
       precio_salida: salida, incremento: Number($("#l-incremento").value) || 500,
-      vendedor_id: $("#l-vendedor").value || null
+      vendedor_id: $("#l-vendedor").value ? Number($("#l-vendedor").value) : null
     };
     const archivo = $("#l-foto").files[0];
     if(archivo) reg.foto_url = await subirFoto(archivo, "lote-"+lote);
@@ -584,13 +588,13 @@ $("#btn-config").onclick = async () => {
 
 function poblarSelectsVendedor(){
   const opciones = `<option value="">Rancho Morolica (propio)</option>` +
-    (window._vendedores||[]).map(v => `<option value="${v.id}">${v.nombre_finca}${v.estado!=='aprobado' ? ' ('+v.estado+')' : ''}</option>`).join("");
+    (window._vendedores||[]).map(v => `<option value="${v.id_vendedor}">${v.nombre_finca||v.nombre_vendedor}${v.estado!=='aprobado' ? ' ('+v.estado+')' : ''}</option>`).join("");
   $("#a-vendedor").innerHTML = opciones;
   $("#l-vendedor").innerHTML = opciones;
 }
 
 async function cargarVendedores(){
-  const {data} = await db.from("vendedores").select("*").order("created_at",{ascending:false});
+  const {data} = await db.from("vendedores").select("*").order("nombre_vendedor");
   window._vendedores = data || [];
   poblarSelectsVendedor();
   const {data:resenas} = await db.from("resenas_vendedor").select("vendedor_id,calificacion");
@@ -600,41 +604,43 @@ async function cargarVendedores(){
     ranking[r.vendedor_id].suma += r.calificacion; ranking[r.vendedor_id].n++;
   });
   $("#lista-vendedores").innerHTML = window._vendedores.map(v => {
-    const rk = ranking[v.id];
+    const rk = ranking[v.id_vendedor];
     const prom = rk ? (rk.suma/rk.n).toFixed(1) : null;
+    const estado = v.estado || "aprobado";
     return `<div class="lista-item">
-      <div class="mini">${(v.nombre_finca||"?").charAt(0).toUpperCase()}</div>
+      <div class="mini">${(v.nombre_vendedor||"?").charAt(0).toUpperCase()}</div>
       <div class="li-info">
-        <b>${v.nombre_finca}</b>
-        ${v.nombre_contacto} · ${v.telefono||"sin teléfono"} · Comisión ${v.comision_pct}%<br>
+        <b>${v.nombre_finca || v.nombre_vendedor}</b>
+        ${v.nombre_vendedor} · ${v.telefono||"sin teléfono"} · Comisión ${v.comision_pactada}%<br>
         ${prom ? `★ ${prom} (${rk.n} reseña${rk.n===1?"":"s"})` : "Sin reseñas aún"}
-        <span class="pill ${v.estado==='aprobado'?'pub':v.estado==='rechazado'?'vend':'oculto'}">${v.estado}</span>
+        <span class="pill ${estado==='aprobado'?'pub':estado==='rechazado'?'vend':'oculto'}">${estado}</span>
         <div class="contactos">
           ${v.telefono ? `<a href="tel:${v.telefono}" title="Llamar">📞</a><a href="https://wa.me/${v.telefono.replace(/\D/g,'')}" target="_blank" title="WhatsApp">💬</a>` : ""}
           ${v.correo ? `<a href="mailto:${v.correo}" title="Correo">✉️</a>` : ""}
         </div>
       </div>
       <div class="li-acciones">
-        <button class="btn btn-chico btn-gris" onclick="editarVendedor('${v.id}')">Editar</button>
-        <button class="btn btn-chico btn-rojo" onclick="borrarVendedor('${v.id}')">Borrar</button>
+        <button class="btn btn-chico btn-gris" onclick="editarVendedor('${v.id_vendedor}')">Editar</button>
+        <button class="btn btn-chico btn-rojo" onclick="borrarVendedor('${v.id_vendedor}')">Borrar</button>
       </div>
     </div>`;
-  }).join("") || "<p style='color:#7a7263'>Aún no hay vendedores externos.</p>";
+  }).join("") || "<p style='color:#7a7263'>Aún no hay vendedores.</p>";
 }
 
 window.editarVendedor = id => {
-  const v = window._vendedores.find(x=>x.id===id);
+  const v = window._vendedores.find(x=>String(x.id_vendedor)===String(id));
   if(!v) return;
-  $("#v-id").value=v.id; $("#v-nombre-contacto").value=v.nombre_contacto; $("#v-telefono").value=v.telefono||"";
+  $("#v-id").value=v.id_vendedor; $("#v-nombre-contacto").value=v.nombre_vendedor||""; $("#v-telefono").value=v.telefono||"";
+  $("#v-identidad").value=v.identidad||""; $("#v-procedencia").value=v.procedencia||"";
   $("#v-correo").value=v.correo||"";
-  $("#v-finca").value=v.nombre_finca; $("#v-ubicacion").value=v.ubicacion_finca||""; $("#v-desc").value=v.descripcion||"";
-  $("#v-comision").value=v.comision_pct; $("#v-estado").value=v.estado;
+  $("#v-finca").value=v.nombre_finca||""; $("#v-ubicacion").value=v.ubicacion_finca||""; $("#v-desc").value=v.descripcion||"";
+  $("#v-comision").value=v.comision_pactada; $("#v-estado").value=v.estado||"aprobado";
   $("#btn-cancelar-vendedor").style.display = "block";
   window.scrollTo({top:0, behavior:"smooth"});
 };
 
 function limpiarVendedor(){
-  ["v-id","v-nombre-contacto","v-telefono","v-correo","v-finca","v-ubicacion","v-desc"].forEach(i=>$("#"+i).value="");
+  ["v-id","v-nombre-contacto","v-telefono","v-identidad","v-procedencia","v-correo","v-finca","v-ubicacion","v-desc"].forEach(i=>$("#"+i).value="");
   $("#v-comision").value = 4; $("#v-estado").value = "aprobado";
   $("#btn-cancelar-vendedor").style.display = "none";
 }
@@ -642,23 +648,25 @@ $("#btn-cancelar-vendedor").onclick = limpiarVendedor;
 
 window.borrarVendedor = async id => {
   if(!confirm("¿Borrar este vendedor? Esto no borra sus animales, pero perderán la referencia.")) return;
-  await db.from("vendedores").delete().eq("id", id);
+  await db.from("vendedores").delete().eq("id_vendedor", id);
   cargarVendedores();
 };
 
 $("#btn-guardar-vendedor").onclick = async () => {
-  const nombre_contacto = $("#v-nombre-contacto").value.trim();
-  const nombre_finca = $("#v-finca").value.trim();
-  if(!nombre_contacto || !nombre_finca) return msg("#v-msg","Nombre de contacto y finca son obligatorios.","err");
+  const nombre_vendedor = $("#v-nombre-contacto").value.trim();
+  if(!nombre_vendedor) return msg("#v-msg","El nombre del vendedor es obligatorio.","err");
   const reg = {
-    nombre_contacto, telefono: $("#v-telefono").value.trim(), correo: $("#v-correo").value.trim() || null,
-    nombre_finca, ubicacion_finca: $("#v-ubicacion").value.trim(),
+    nombre_vendedor, telefono: $("#v-telefono").value.trim(),
+    identidad: $("#v-identidad").value.trim(), procedencia: $("#v-procedencia").value.trim(),
+    correo: $("#v-correo").value.trim() || null,
+    nombre_finca: $("#v-finca").value.trim() || nombre_vendedor,
+    ubicacion_finca: $("#v-ubicacion").value.trim(),
     descripcion: $("#v-desc").value.trim(),
-    comision_pct: Number($("#v-comision").value) || 0,
+    comision_pactada: Number($("#v-comision").value) || 0,
     estado: $("#v-estado").value
   };
   const id = $("#v-id").value;
-  const q = id ? db.from("vendedores").update(reg).eq("id", id) : db.from("vendedores").insert(reg);
+  const q = id ? db.from("vendedores").update(reg).eq("id_vendedor", id) : db.from("vendedores").insert(reg);
   const {error} = await q;
   msg("#v-msg", error ? "Error: "+error.message : "Vendedor guardado.", error ? "err" : "ok");
   if(!error){ limpiarVendedor(); cargarVendedores(); }
@@ -682,8 +690,9 @@ function descargarCsv(nombreArchivo, filas){
 
 $("#btn-csv-vendedores").onclick = () => {
   descargarCsv("vendedores-rancho-morolica.csv", (window._vendedores||[]).map(v => ({
-    finca: v.nombre_finca, contacto: v.nombre_contacto, telefono: v.telefono||"",
-    correo: v.correo||"", ubicacion: v.ubicacion_finca||"", comision_pct: v.comision_pct, estado: v.estado
+    finca: v.nombre_finca, vendedor: v.nombre_vendedor, telefono: v.telefono||"",
+    correo: v.correo||"", identidad: v.identidad||"", procedencia: v.procedencia||"",
+    ubicacion: v.ubicacion_finca||"", comision_pactada: v.comision_pactada, estado: v.estado||"aprobado"
   })));
 };
 

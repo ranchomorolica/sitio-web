@@ -117,26 +117,43 @@ as $$
   select coalesce((select es_admin from public.perfiles where id = auth.uid()), false);
 $$;
 
--- 5) Vendedores externos (consignatarios): rancheros ajenos a
---    Rancho Morolica que registran su ganado para venderlo aquí.
-create table if not exists public.vendedores (
-  id uuid primary key default gen_random_uuid(),
-  nombre_contacto text not null,
-  telefono text,
-  nombre_finca text not null,
-  ubicacion_finca text,
-  descripcion text,
-  comision_pct numeric not null default 4,
-  estado text not null default 'pendiente' check (estado in ('pendiente','aprobado','rechazado')),
-  created_at timestamptz default now()
-);
+-- 5) Vendedores: esta tabla YA EXISTÍA de su software de subasta
+--    (id_vendedor serial, nombre_vendedor, comision_pactada,
+--    identidad, telefono, procedencia). NO la volvemos a crear —
+--    solo le agregamos las columnas que necesita el sitio web para
+--    mostrar cada finca públicamente con su reseña.
 alter table public.vendedores add column if not exists correo text;
+alter table public.vendedores add column if not exists nombre_finca text;
+alter table public.vendedores add column if not exists ubicacion_finca text;
+alter table public.vendedores add column if not exists descripcion text;
+alter table public.vendedores add column if not exists estado text not null default 'aprobado';
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'vendedores_estado_check') then
+    alter table public.vendedores add constraint vendedores_estado_check
+      check (estado in ('pendiente','aprobado','rechazado'));
+  end if;
+end $$;
+-- Los vendedores que ya existían quedan aprobados y usan su nombre
+-- real como nombre de finca hasta que el admin lo edite.
+update public.vendedores set nombre_finca = nombre_vendedor where nombre_finca is null;
+
+-- Vista pública y segura: solo lo necesario para mostrar el
+-- directorio de vendedores en la página (nunca su identidad,
+-- teléfono ni comisión pactada — esos quedan solo para el admin).
+create or replace view public.vendedores_publico as
+select id_vendedor as id, nombre_vendedor, coalesce(nombre_finca, nombre_vendedor) as nombre_finca,
+       ubicacion_finca, descripcion
+from public.vendedores
+where coalesce(estado, 'aprobado') = 'aprobado';
+grant select on public.vendedores_publico to anon, authenticated;
 
 -- Reseñas y ranking de esos vendedores, dejadas por compradores
--- ya verificados.
+-- ya verificados. vendedor_id es integer porque así es la llave
+-- real de la tabla vendedores (id_vendedor serial), no uuid.
 create table if not exists public.resenas_vendedor (
   id uuid primary key default gen_random_uuid(),
-  vendedor_id uuid not null references public.vendedores(id) on delete cascade,
+  vendedor_id integer not null references public.vendedores(id_vendedor) on delete cascade,
   comprador_id uuid not null references auth.users(id) on delete cascade,
   calificacion int not null check (calificacion between 1 and 5),
   comentario text,
@@ -165,8 +182,8 @@ create table if not exists public.subasta_lotes (
   ganador_nombre text,
   created_at timestamptz default now()
 );
-alter table public.subasta_lotes add column if not exists vendedor_id uuid references public.vendedores(id);
-alter table public.ganado_web add column if not exists vendedor_id uuid references public.vendedores(id);
+alter table public.subasta_lotes add column if not exists vendedor_id integer references public.vendedores(id_vendedor);
+alter table public.ganado_web add column if not exists vendedor_id integer references public.vendedores(id_vendedor);
 
 -- 7) Pujas: historial de ofertas de cada lote. Se insertan
 --    exclusivamente a través de las funciones hacer_puja() /
@@ -365,7 +382,7 @@ create table if not exists public.facturas (
   comprador_id uuid references auth.users(id),
   comprador_nombre text not null,
   comprador_telefono text,
-  vendedor_id uuid references public.vendedores(id),
+  vendedor_id integer references public.vendedores(id_vendedor),
   monto_lps numeric not null,
   comision_pct numeric not null default 0,
   comision_lps numeric not null default 0,
@@ -383,6 +400,19 @@ alter table public.vendedores enable row level security;
 alter table public.resenas_vendedor enable row level security;
 alter table public.depositos enable row level security;
 alter table public.facturas enable row level security;
+
+-- Estas 6 tablas son del software de subasta (ruedo/proyector) y
+-- tenían RLS desactivado — es decir, cualquiera en internet con la
+-- llave pública podía leerlas y modificarlas. Les ponemos el mismo
+-- candado: solo su cuenta de administrador puede usarlas. El
+-- programa del ruedo debe iniciar sesión con esa cuenta (ver
+-- App.js actualizado) para seguir funcionando.
+alter table public.clientes enable row level security;
+alter table public.compradores enable row level security;
+alter table public.lotes enable row level security;
+alter table public.historial_ventas enable row level security;
+alter table public.subasta_en_vivo enable row level security;
+alter table public.subastas_archivadas enable row level security;
 
 -- Ganado
 drop policy if exists "publico lee ganado publicado" on public.ganado_web;
@@ -502,16 +532,46 @@ create policy "admin borra pujas"
   on public.pujas for delete
   to authenticated using (public.es_admin());
 
--- Vendedores externos: público solo ve los aprobados; el admin
--- ve y gestiona todos (alta, aprobación, edición).
+-- Vendedores: la tabla real queda solo para el admin (tiene
+-- identidad, teléfono, comisión pactada). El público ve el
+-- directorio a través de la vista vendedores_publico de arriba,
+-- que no requiere permiso porque ya filtra las columnas sensibles.
 drop policy if exists "publico lee vendedores aprobados" on public.vendedores;
-create policy "publico lee vendedores aprobados"
-  on public.vendedores for select
-  using (estado = 'aprobado');
-
 drop policy if exists "admin gestiona vendedores" on public.vendedores;
 create policy "admin gestiona vendedores"
   on public.vendedores for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+-- Candado total para las 6 tablas del software de subasta: solo
+-- funcionan con la cuenta de administrador (autenticada).
+drop policy if exists "admin gestiona clientes" on public.clientes;
+create policy "admin gestiona clientes"
+  on public.clientes for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists "admin gestiona compradores" on public.compradores;
+create policy "admin gestiona compradores"
+  on public.compradores for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists "admin gestiona lotes" on public.lotes;
+create policy "admin gestiona lotes"
+  on public.lotes for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists "admin gestiona historial ventas" on public.historial_ventas;
+create policy "admin gestiona historial ventas"
+  on public.historial_ventas for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists "admin gestiona subasta en vivo" on public.subasta_en_vivo;
+create policy "admin gestiona subasta en vivo"
+  on public.subasta_en_vivo for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists "admin gestiona subastas archivadas" on public.subastas_archivadas;
+create policy "admin gestiona subastas archivadas"
+  on public.subastas_archivadas for all
   to authenticated using (public.es_admin()) with check (public.es_admin());
 
 -- Reseñas de vendedores: públicas de leer; solo un comprador ya
@@ -572,6 +632,21 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='pujas') then
     alter publication supabase_realtime add table public.pujas;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='subasta_en_vivo') then
+    alter publication supabase_realtime add table public.subasta_en_vivo;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='historial_ventas') then
+    alter publication supabase_realtime add table public.historial_ventas;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='lotes') then
+    alter publication supabase_realtime add table public.lotes;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='clientes') then
+    alter publication supabase_realtime add table public.clientes;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='vendedores') then
+    alter publication supabase_realtime add table public.vendedores;
   end if;
 end $$;
 

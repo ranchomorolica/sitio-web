@@ -894,7 +894,7 @@ window.enviarComprobante = async () => {
 /* ===== VENDEDORES Y RESEÑAS ===== */
 
 async function cargarVendedoresPublicos(){
-  const {data} = await db.from("vendedores").select("*").eq("estado","aprobado").order("nombre_finca");
+  const {data} = await db.from("vendedores_publico").select("*").order("nombre_finca");
   vendedoresPublicos = data || [];
   const {data:resenas} = await db.from("resenas_vendedor").select("*").order("created_at",{ascending:false});
   const porVendedor = {};
@@ -944,7 +944,7 @@ window.enviarResena = async (vendedorId) => {
   const comentario = document.getElementById("coment-"+vendedorId).value.trim();
   const msgEl = document.getElementById("resena-msg-"+vendedorId);
   const {error} = await db.from("resenas_vendedor").insert({
-    vendedor_id: vendedorId, comprador_id: sesionUsuario.id, calificacion, comentario: comentario || null
+    vendedor_id: Number(vendedorId), comprador_id: sesionUsuario.id, calificacion, comentario: comentario || null
   });
   if(error){ msgEl.textContent = "Error: " + error.message; msgEl.className = "puja-msg err"; return; }
   await cargarVendedoresPublicos();

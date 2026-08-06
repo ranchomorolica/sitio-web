@@ -105,6 +105,15 @@ Para ranchos ajenos que consignan ganado con usted:
 3. Los compradores ya aprobados pueden dejar una reseña de 1 a 5 estrellas de cada vendedor desde la sección "Vendedores" de la página pública; el promedio y la cantidad de reseñas se muestran ahí y también junto al animal en el catálogo.
 4. Cada venta genera su factura automáticamente con el desglose de la comisión de ese vendedor.
 
+## Se unificó con su programa de subasta (Panel de Control / Proyector)
+
+Su tabla real de `vendedores` (la de su programa de ruedo) ahora es la misma que usa la página web — ya no hay dos por separado. Además, se le puso el candado de seguridad a las 6 tablas de ese programa que estaban completamente públicas (`clientes`, `compradores`, `lotes`, `historial_ventas`, `subasta_en_vivo`, `subastas_archivadas`): antes cualquiera en internet podía leerlas y modificarlas; ahora solo funcionan si inició sesión con su cuenta de administrador.
+
+Dos pasos para que esto quede funcionando:
+
+1. **Corra el `setup.sql` nuevo** en Supabase (el de siempre — SQL Editor → pegar todo → Run). Agrega las columnas que faltan en `vendedores` (correo, nombre de finca, etc.) y pone el candado en las 6 tablas.
+2. **Reemplace el `App.js`** de su programa del ruedo por el que le mandé — ahora pide el mismo correo y contraseña de `admin.html` en vez de la contraseña compartida de antes. Sin este paso, el programa del ruedo deja de poder leer/escribir esas tablas (por el candado nuevo) hasta que inicie sesión de verdad.
+
 ## Precio también en dólares
 
 Se calcula solo a partir del tipo de cambio que usted pone en `/admin.html` → "Configuración del sitio". Actualícelo cuando cambie el valor del dólar; no se conecta a ningún servicio externo.
