@@ -156,7 +156,12 @@ where alias_publico is null;
 -- Vista pública y segura: solo el apodo y la ubicación/descripción
 -- general de la finca — NUNCA el nombre real, identidad, teléfono,
 -- correo ni comisión pactada, que quedan solo para el admin.
-create or replace view public.vendedores_publico as
+-- Se borra y se vuelve a crear (en vez de "or replace") porque
+-- Postgres no permite quitarle columnas a una vista existente con
+-- "or replace" — y esta versión le quita nombre_vendedor/nombre_finca
+-- a propósito, por privacidad.
+drop view if exists public.vendedores_publico;
+create view public.vendedores_publico as
 select id_vendedor as id, coalesce(alias_publico, 'Vendedor #' || id_vendedor) as alias_publico,
        ubicacion_finca, descripcion
 from public.vendedores
