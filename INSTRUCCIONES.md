@@ -114,6 +114,22 @@ Dos pasos para que esto quede funcionando:
 1. **Corra el `setup.sql` nuevo** en Supabase (el de siempre — SQL Editor → pegar todo → Run). Agrega las columnas que faltan en `vendedores` (correo, nombre de finca, etc.) y pone el candado en las 6 tablas.
 2. **Reemplace el `App.js`** de su programa del ruedo por el que le mandé — ahora pide el mismo correo y contraseña de `admin.html` en vez de la contraseña compartida de antes. Sin este paso, el programa del ruedo deja de poder leer/escribir esas tablas (por el candado nuevo) hasta que inicie sesión de verdad.
 
+## Maquinaria, silobolsa y pacas de heno
+
+En `/admin.html` → **"Maquinaria y suministros"**: agregue cada artículo con su categoría (Maquinaria, Silobolsa, o Pacas de heno), foto, precio, y si quiere, marca/modelo/año/horas de uso (para maquinaria) o cantidad/unidad (para silobolsa y pacas). Aparecen en su propia sección "Maquinaria y suministros" de la página pública, separado del ganado.
+
+## Modos de precio: directo u oferta (estilo eBay)
+
+Al agregar o editar un animal o un artículo, en **"Modo de venta"** elija:
+
+- **Precio directo** (como siempre): el comprador escribe por WhatsApp al precio publicado.
+- **Permitir que el comprador haga una oferta**: en la página aparece un botón "Hacer una oferta" donde el comprador (ya registrado) propone un monto. Le llega a `/admin.html` → **"Ofertas recibidas"**, donde puede:
+  - **Aceptar** → se marca vendido y genera la factura sola.
+  - **Rechazar**.
+  - **Contraofertar** → le pide otro monto; al comprador le aparece esa contraoferta en su propia página (arriba del catálogo) para aceptar o rechazar.
+
+La subasta en vivo sigue siendo su propio modo aparte (con pujas en tiempo real), no cambia con esto.
+
 ## Precio también en dólares
 
 Se calcula solo a partir del tipo de cambio que usted pone en `/admin.html` → "Configuración del sitio". Actualícelo cuando cambie el valor del dólar; no se conecta a ningún servicio externo.

@@ -105,6 +105,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <img id="foto-prev" alt="Vista previa">
     <label>Vendedor</label>
     <select id="a-vendedor"><option value="">Rancho Morolica (propio)</option></select>
+    <label>Modo de venta</label>
+    <select id="a-modo">
+      <option value="directo">Precio directo (como ahora)</option>
+      <option value="oferta">Permitir que el comprador haga una oferta</option>
+    </select>
     <div class="fila">
       <div><label><input type="checkbox" id="a-pub" checked style="width:auto;margin-right:6px">Publicado en la web</label></div>
       <div><label><input type="checkbox" id="a-vendido" style="width:auto;margin-right:6px">Marcado como vendido</label></div>
@@ -166,6 +171,57 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
   <div class="tarjeta oculto-sec" id="sec-lista">
     <h2>Inventario publicado (<span id="total">0</span>)</h2>
     <div id="lista"></div>
+  </div>
+
+  <!-- MAQUINARIA Y SUMINISTROS -->
+  <div class="tarjeta oculto-sec" id="sec-articulos">
+    <h2>Maquinaria y suministros</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Maquinaria agrícola, silobolsa y pacas de heno — aparecen en su propia sección del catálogo, aparte del ganado.</p>
+    <input type="hidden" id="art-id">
+    <label>Categoría *</label>
+    <select id="art-cat">
+      <option>Maquinaria</option><option>Silobolsa</option><option>Pacas de heno</option>
+    </select>
+    <label>Nombre *</label><input id="art-nombre" placeholder="Tractor Massey Ferguson 265">
+    <label>Descripción</label><textarea id="art-desc" rows="2"></textarea>
+    <div class="fila">
+      <div><label>Marca</label><input id="art-marca"></div>
+      <div><label>Modelo</label><input id="art-modelo"></div>
+    </div>
+    <div class="fila">
+      <div><label>Año</label><input id="art-anio" type="number" inputmode="numeric"></div>
+      <div><label>Horas de uso</label><input id="art-horas" type="number" inputmode="numeric"></div>
+    </div>
+    <div class="fila">
+      <div><label>Cantidad</label><input id="art-cantidad" type="number" inputmode="numeric" placeholder="Ej: 50"></div>
+      <div><label>Unidad</label><input id="art-unidad" placeholder="pacas / silobolsas / unidad"></div>
+    </div>
+    <label>Precio (Lempiras)</label><input id="art-precio" type="number" inputmode="numeric" placeholder="Vacío = Consultar">
+    <label>Foto</label>
+    <input id="art-foto" type="file" accept="image/*">
+    <img id="art-foto-prev" alt="Vista previa" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px;display:none">
+    <label>Vendedor</label>
+    <select id="art-vendedor"><option value="">Rancho Morolica (propio)</option></select>
+    <label>Modo de venta</label>
+    <select id="art-modo">
+      <option value="directo">Precio directo</option>
+      <option value="oferta">Permitir que el comprador haga una oferta</option>
+    </select>
+    <div class="fila">
+      <div><label><input type="checkbox" id="art-pub" checked style="width:auto;margin-right:6px">Publicado en la web</label></div>
+      <div><label><input type="checkbox" id="art-vendido" style="width:auto;margin-right:6px">Marcado como vendido</label></div>
+    </div>
+    <button class="btn btn-v" id="btn-guardar-articulo">Guardar artículo</button>
+    <button class="btn btn-gris" id="btn-cancelar-articulo" style="display:none">Cancelar edición</button>
+    <div class="msg" id="art-msg"></div>
+    <div id="lista-articulos" style="margin-top:18px"></div>
+  </div>
+
+  <!-- OFERTAS RECIBIDAS -->
+  <div class="tarjeta oculto-sec" id="sec-ofertas">
+    <h2>Ofertas recibidas (<span id="total-ofertas">0</span> pendientes)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Cuando alguien "hace una oferta" por un animal o artículo marcado así, aparece aquí. Puede aceptarla (genera la factura sola), rechazarla, o proponer otro monto.</p>
+    <div id="lista-ofertas"></div>
   </div>
 
   <!-- VERIFICACIÓN KYC -->
@@ -249,7 +305,7 @@ const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
 
-const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
+const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
 
 async function sesion(){
   const {data:{session}} = await db.auth.getSession();
@@ -270,6 +326,8 @@ async function sesion(){
     await cargarConfig();
     await cargarVendedores();
     await listar();
+    await cargarArticulos();
+    await cargarOfertas();
     await cargarSubasta();
     await cargarCompradores();
     await cargarVerificacion();
@@ -334,7 +392,8 @@ $("#btn-guardar").onclick = async () => {
       precio_lps: Number($("#a-precio").value) || null,
       estado: $("#a-estado").value.trim(),
       publicado: $("#a-pub").checked, vendido: $("#a-vendido").checked,
-      vendedor_id: $("#a-vendedor").value ? Number($("#a-vendedor").value) : null
+      vendedor_id: $("#a-vendedor").value ? Number($("#a-vendedor").value) : null,
+      modo_venta: $("#a-modo").value
     };
     const archivo = $("#a-foto").files[0];
     if(archivo) reg.foto_url = await subirFoto(archivo, lote);
@@ -362,7 +421,7 @@ $("#btn-guardar").onclick = async () => {
 function limpiar(){
   ["a-id","a-lote","a-nombre","a-peso","a-edad","a-precio","a-estado","a-vendedor"].forEach(i=>$("#"+i).value="");
   $("#a-foto").value=""; $("#foto-prev").style.display="none";
-  $("#a-pub").checked = true; $("#a-vendido").checked = false;
+  $("#a-pub").checked = true; $("#a-vendido").checked = false; $("#a-modo").value = "directo";
   $("#form-titulo").textContent = "Agregar animal";
   $("#btn-cancelar").style.display = "none";
 }
@@ -405,7 +464,7 @@ window.editar = id => {
   $("#a-nombre").value=a.nombre||""; $("#a-peso").value=a.peso_kg; $("#a-edad").value=a.edad_meses||"";
   $("#a-precio").value=a.precio_lps||""; $("#a-estado").value=a.estado||"";
   $("#a-pub").checked=a.publicado; $("#a-vendido").checked=a.vendido;
-  $("#a-vendedor").value = a.vendedor_id || "";
+  $("#a-vendedor").value = a.vendedor_id || ""; $("#a-modo").value = a.modo_venta || "directo";
   if(a.foto_url){ $("#foto-prev").src=a.foto_url; $("#foto-prev").style.display="block"; }
   $("#form-titulo").textContent = "Editando lote " + a.lote;
   $("#btn-cancelar").style.display = "block";
@@ -416,6 +475,169 @@ window.borrar = async (id, lote) => {
   if(!confirm(`¿Borrar el lote ${lote}? Esta acción no se puede deshacer.`)) return;
   const {error} = await db.from("ganado_web").delete().eq("id", id);
   if(!error) listar();
+};
+
+/* ===== MAQUINARIA Y SUMINISTROS ===== */
+
+async function cargarArticulos(){
+  const {data, error} = await db.from("articulos_web").select("*").order("created_at",{ascending:false});
+  if(error) return;
+  const {data:facturasData} = await db.from("facturas").select("id,articulo_id").not("articulo_id","is",null);
+  const facturaPorArticulo = {};
+  (facturasData||[]).forEach(f => { if(f.articulo_id) facturaPorArticulo[f.articulo_id] = f.id; });
+  window._articulos = data || [];
+  $("#lista-articulos").innerHTML = window._articulos.map(a => {
+    const vendedor = (window._vendedores||[]).find(v=>String(v.id_vendedor)===String(a.vendedor_id));
+    const facturaId = facturaPorArticulo[a.id];
+    return `
+    <div class="lista-item">
+      ${a.foto_url ? `<img src="${a.foto_url}" alt="">` : `<div class="mini">${a.categoria.charAt(0)}</div>`}
+      <div class="li-info">
+        <b>${a.categoria} · ${a.nombre}</b>
+        ${a.precio_lps ? "L "+Number(a.precio_lps).toLocaleString("es-HN") : "Consultar"} ${a.modo_venta==='oferta'?"· Acepta ofertas":""}<br>
+        ${vendedor ? `Vendedor: ${vendedor.nombre_finca}<br>` : ""}
+        <span class="pill ${a.publicado?'pub':'oculto'}">${a.publicado?'Publicado':'Oculto'}</span>
+        ${a.vendido?'<span class="pill vend">Vendido</span>':''}
+      </div>
+      <div class="li-acciones">
+        <button class="btn btn-chico btn-gris" onclick="editarArticulo('${a.id}')">Editar</button>
+        <button class="btn btn-chico btn-rojo" onclick="borrarArticulo('${a.id}')">Borrar</button>
+        ${facturaId ? `<button class="btn btn-chico btn-v" onclick="window.open('factura.html?id=${facturaId}','_blank')">Factura</button>` : ""}
+      </div>
+    </div>`;
+  }).join("") || "<p style='color:#7a7263'>Aún no hay maquinaria/suministros. Agregue el primero arriba.</p>";
+}
+
+$("#art-foto").onchange = e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  $("#art-foto-prev").src = URL.createObjectURL(f);
+  $("#art-foto-prev").style.display = "block";
+};
+
+function limpiarArticulo(){
+  ["art-id","art-nombre","art-desc","art-marca","art-modelo","art-anio","art-horas","art-cantidad","art-unidad","art-precio","art-vendedor"].forEach(i=>$("#"+i).value="");
+  $("#art-foto").value=""; $("#art-foto-prev").style.display="none";
+  $("#art-pub").checked = true; $("#art-vendido").checked = false; $("#art-modo").value = "directo"; $("#art-cat").value = "Maquinaria";
+  $("#btn-cancelar-articulo").style.display = "none";
+}
+$("#btn-cancelar-articulo").onclick = limpiarArticulo;
+
+window.editarArticulo = id => {
+  const a = (window._articulos||[]).find(x=>x.id===id);
+  if(!a) return;
+  $("#art-id").value=a.id; $("#art-cat").value=a.categoria; $("#art-nombre").value=a.nombre;
+  $("#art-desc").value=a.descripcion||""; $("#art-marca").value=a.marca||""; $("#art-modelo").value=a.modelo||"";
+  $("#art-anio").value=a.anio||""; $("#art-horas").value=a.horas_uso||"";
+  $("#art-cantidad").value=a.cantidad||""; $("#art-unidad").value=a.unidad||"";
+  $("#art-precio").value=a.precio_lps||""; $("#art-vendedor").value=a.vendedor_id||"";
+  $("#art-modo").value = a.modo_venta || "directo";
+  $("#art-pub").checked=a.publicado; $("#art-vendido").checked=a.vendido;
+  if(a.foto_url){ $("#art-foto-prev").src=a.foto_url; $("#art-foto-prev").style.display="block"; }
+  $("#btn-cancelar-articulo").style.display = "block";
+  window.scrollTo({top:0, behavior:"smooth"});
+};
+
+window.borrarArticulo = async (id) => {
+  if(!confirm("¿Borrar este artículo? Esta acción no se puede deshacer.")) return;
+  await db.from("articulos_web").delete().eq("id", id);
+  cargarArticulos();
+};
+
+$("#btn-guardar-articulo").onclick = async () => {
+  const nombre = $("#art-nombre").value.trim();
+  if(!nombre) return msg("#art-msg","El nombre es obligatorio.","err");
+  const id = $("#art-id").value;
+  const yaEstabaVendido = id ? !!(window._articulos||[]).find(x=>x.id===id)?.vendido : false;
+  $("#btn-guardar-articulo").disabled = true;
+  try{
+    const reg = {
+      categoria: $("#art-cat").value, nombre,
+      descripcion: $("#art-desc").value.trim(), marca: $("#art-marca").value.trim(), modelo: $("#art-modelo").value.trim(),
+      anio: Number($("#art-anio").value) || null, horas_uso: Number($("#art-horas").value) || null,
+      cantidad: Number($("#art-cantidad").value) || null, unidad: $("#art-unidad").value.trim(),
+      precio_lps: Number($("#art-precio").value) || null,
+      vendedor_id: $("#art-vendedor").value ? Number($("#art-vendedor").value) : null,
+      modo_venta: $("#art-modo").value,
+      publicado: $("#art-pub").checked, vendido: $("#art-vendido").checked
+    };
+    const archivo = $("#art-foto").files[0];
+    if(archivo) reg.foto_url = await subirFoto(archivo, "articulo-"+Date.now());
+    const q = id ? db.from("articulos_web").update(reg).eq("id", id).select().single()
+                 : db.from("articulos_web").insert(reg).select().single();
+    const {data, error} = await q;
+    if(error) throw error;
+    msg("#art-msg", id ? "Artículo actualizado." : "Artículo agregado.", "ok");
+    if(reg.vendido && !yaEstabaVendido){
+      const compradorNombre = prompt("Venta marcada. Nombre del comprador para generar la factura:", "");
+      if(compradorNombre){
+        const compradorTelefono = prompt("Teléfono del comprador (opcional):", "") || null;
+        const f = await generarFactura({
+          origen: "catalogo", vendedor_id: reg.vendedor_id, comprador_nombre: compradorNombre,
+          comprador_telefono: compradorTelefono, monto_lps: reg.precio_lps || 0
+        });
+        if(f){
+          await db.from("facturas").update({articulo_id: data.id, ganado_id: null}).eq("id", f.id);
+          window.open("factura.html?id=" + f.id, "_blank");
+        }
+      }
+    }
+    limpiarArticulo(); cargarArticulos();
+  }catch(e){ msg("#art-msg","Error: "+e.message,"err"); }
+  $("#btn-guardar-articulo").disabled = false;
+};
+
+/* ===== OFERTAS RECIBIDAS ===== */
+
+async function cargarOfertas(){
+  const {data} = await db.from("ofertas").select("*").order("created_at",{ascending:false});
+  const ofertas = data || [];
+  window._ofertas = ofertas;
+  const pendientes = ofertas.filter(o => o.estado === "pendiente");
+  $("#total-ofertas").textContent = pendientes.length;
+  if(!ofertas.length){
+    $("#lista-ofertas").innerHTML = "<p style='color:#7a7263'>Aún no hay ofertas.</p>";
+    return;
+  }
+  const idsComprador = [...new Set(ofertas.map(o=>o.comprador_id))];
+  const {data:perfilesData} = await db.from("perfiles").select("id,nombre,telefono").in("id", idsComprador);
+  const nombres = {};
+  (perfilesData||[]).forEach(p => nombres[p.id] = p);
+  $("#lista-ofertas").innerHTML = ofertas.map(o => {
+    const comprador = nombres[o.comprador_id] || {};
+    const item = o.origen === "ganado"
+      ? (window._datos||[]).find(x=>x.id===o.ganado_id)
+      : (window._articulos||[]).find(x=>x.id===o.articulo_id);
+    const nombreItem = item ? (item.nombre || item.lote || item.categoria) : "(artículo eliminado)";
+    return `<div class="lista-item">
+      <div class="mini">${(comprador.nombre||"?").charAt(0).toUpperCase()}</div>
+      <div class="li-info">
+        <b>${nombreItem}</b>
+        ${comprador.nombre||"Comprador"} · ${comprador.telefono||"sin teléfono"} ofrece <b>L ${Number(o.monto_ofrecido).toLocaleString("es-HN")}</b>
+        ${o.mensaje ? `<br>"${o.mensaje}"` : ""}
+        ${o.estado==='contraoferta' ? `<br>Su contraoferta: L ${Number(o.monto_contraoferta).toLocaleString("es-HN")} (esperando al comprador)` : ""}<br>
+        <span class="pill ${o.estado==='aceptada'?'pub':o.estado==='rechazada'?'vend':'oculto'}">${o.estado}</span>
+      </div>
+      <div class="li-acciones">
+        ${o.estado==='pendiente' ? `
+          <button class="btn btn-chico btn-v" onclick="responderOferta('${o.id}','aceptar')">Aceptar</button>
+          <button class="btn btn-chico btn-gris" onclick="responderOferta('${o.id}','contraofertar')">Contraofertar</button>
+          <button class="btn btn-chico btn-rojo" onclick="responderOferta('${o.id}','rechazar')">Rechazar</button>
+        ` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.responderOferta = async (id, accion) => {
+  let monto = null;
+  if(accion === 'contraofertar'){
+    monto = Number(prompt("¿Cuánto quiere ofrecer usted a cambio? (Lempiras)", ""));
+    if(!monto) return;
+  }
+  const {error} = await db.rpc("responder_oferta", {p_oferta_id: id, p_accion: accion, p_monto_contraoferta: monto});
+  if(error) return alert("Error: " + error.message);
+  await cargarOfertas(); await listar(); await cargarArticulos();
 };
 
 let subastaIdActual = null;

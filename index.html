@@ -217,6 +217,17 @@ section{padding:64px 0}
 /* ===== PRECIO EN USD ===== */
 .precio-usd{display:block;font-size:.72rem;font-weight:600;color:#7a7263;letter-spacing:.5px}
 
+/* ===== OFERTAS ===== */
+.btn-oferta{background:transparent;border:2px solid var(--cuero);color:var(--cuero)}
+.form-oferta{margin-top:10px;border-top:1px dashed #c9bfa6;padding-top:10px;display:none}
+.form-oferta.abierto{display:block}
+.form-oferta input,.form-oferta textarea{width:100%;padding:9px 11px;border:2px solid #d5cbb2;border-radius:6px;margin-bottom:8px;font-family:'Archivo',sans-serif;font-size:.9rem}
+.mis-ofertas{background:#fff3d6;border:2px dashed var(--fierro);border-radius:8px;padding:14px 16px;margin-bottom:22px}
+.mis-ofertas h4{color:var(--monte);margin-bottom:8px;font-size:1rem}
+.mis-ofertas .fila-oferta{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed #e0d3ab;font-size:.88rem}
+.mis-ofertas .fila-oferta:last-child{border-bottom:none}
+.mis-ofertas button{padding:6px 12px;font-size:.78rem;border-radius:6px;border:none;font-weight:700;cursor:pointer;font-family:'Archivo',sans-serif}
+
 /* ===== VENDEDORES / RESEÑAS ===== */
 .vendedor-badge{font-size:.76rem;color:var(--cuero);font-weight:700;margin-top:-4px}
 .estrellas{color:var(--fierro);letter-spacing:1px}
@@ -278,6 +289,7 @@ footer a:hover{color:var(--fierro)}
     <button class="menu-btn" aria-label="Abrir menú" onclick="document.querySelector('.navlinks').classList.toggle('open')">☰</button>
     <div class="navlinks">
       <a href="#catalogo">Catálogo</a>
+      <a href="#maquinaria">Maquinaria</a>
       <a href="#subastas">Subastas en línea</a>
       <a href="#vendedores">Vendedores</a>
       <a href="#vender">Vende con nosotros</a>
@@ -320,9 +332,21 @@ footer a:hover{color:var(--fierro)}
       <p>Cada animal con su categoría, peso, edad y estado. Toque el botón verde para consultar directamente por el animal que le interese.</p>
     </div>
     <div class="aviso-demo" id="aviso-demo">⚠ Mostrando animales de ejemplo. Configure Supabase en el archivo para ver el inventario real.</div>
+    <div id="mis-ofertas"></div>
     <input id="buscador" type="search" placeholder="Buscar por lote, categoría…" aria-label="Buscar animal">
     <div class="filtros" id="filtros"></div>
     <div class="grid" id="grid"></div>
+  </div>
+</section>
+
+<section id="maquinaria">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 class="display">Maquinaria y suministros</h2>
+      <p>Maquinaria agrícola, silobolsa y pacas de heno disponibles.</p>
+    </div>
+    <div class="filtros" id="filtros-articulos"></div>
+    <div class="grid" id="grid-articulos"></div>
   </div>
 </section>
 
@@ -469,6 +493,8 @@ let sesionUsuario = null, authTab = "login";
 let subastaActivaId = null, loteVivo = null, ultimoLoteId = null, historialCache = [], canalSubasta = null;
 let configSitio = { tipo_cambio_lps_por_usd: 26.5, deposito_garantia_lps: 10000, datos_bancarios: "" };
 let vendedoresPublicos = [], resenaVendedorSel = null;
+const CATEGORIAS_ART = ["Todos","Maquinaria","Silobolsa","Pacas de heno"];
+let articulos = [], filtroArt = "Todos", misOfertas = [];
 
 const DEMO = [
   {lote:"A-01",categoria:"Toro",nombre:"Toro Brahman blanco",peso_kg:520,edad_meses:38,precio_lps:58000,estado:"Para pesas",foto_url:"",vendido:false},
@@ -540,11 +566,131 @@ function pintar(){
           ${a.estado?`<span style="grid-column:1/-1">Estado: <b>${a.estado}</b></span>`:''}
         </div>
         <div class="precio">${a.precio_lps?fmtL(a.precio_lps):"Consultar"} <small>LPS</small>${a.precio_lps?`<span class="precio-usd">≈ ${fmtUSD(a.precio_lps)} USD</span>`:''}</div>
-        ${a.vendido?'':`<a class="btn btn-ws" href="${wsLink(msg)}" target="_blank" rel="noopener">Me interesa este animal</a>`}
+        ${a.vendido?'':`<a class="btn btn-ws" href="${wsLink(msg)}" target="_blank" rel="noopener">Me interesa este animal</a>${a.modo_venta==='oferta'?ofertaBloqueHtml('ganado',a.id):''}`}
       </div>
     </article>`;
   }).join("");
 }
+
+/* ===== MAQUINARIA Y SUMINISTROS ===== */
+
+async function cargarArticulos(){
+  const {data} = await db.from("articulos_web").select("*").eq("publicado", true).order("created_at",{ascending:false});
+  articulos = data || [];
+  pintarFiltrosArt();
+  pintarArticulos();
+}
+
+function pintarFiltrosArt(){
+  const cont = $("#filtros-articulos");
+  if(!cont) return;
+  cont.innerHTML = CATEGORIAS_ART.map(c =>
+    `<button class="chip ${c===filtroArt?'on':''}" onclick="setFiltroArt('${c}')">${c}</button>`).join("");
+}
+window.setFiltroArt = c => { filtroArt = c; pintarFiltrosArt(); pintarArticulos(); };
+
+function pintarArticulos(){
+  const cont = $("#grid-articulos");
+  if(!cont) return;
+  const lista = articulos.filter(a => filtroArt==="Todos" || a.categoria===filtroArt);
+  if(!lista.length){
+    cont.innerHTML = `<div class="vacio">Por ahora no hay maquinaria ni suministros publicados. Escríbanos por WhatsApp para consultar disponibilidad.</div>`;
+    return;
+  }
+  cont.innerHTML = lista.map(a => {
+    const msg = `Hola Rancho Morolica, me interesa "${a.nombre}" (${a.categoria}) que vi en su página web. ¿Sigue disponible?`;
+    const foto = a.foto_url
+      ? `<img src="${a.foto_url}" alt="${a.nombre}" loading="lazy">`
+      : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:'Bevan',serif;color:#a89b7d;font-size:2.2rem">RM</div>`;
+    const detalles = [];
+    if(a.marca) detalles.push(`Marca: <b>${a.marca}</b>`);
+    if(a.modelo) detalles.push(`Modelo: <b>${a.modelo}</b>`);
+    if(a.anio) detalles.push(`Año: <b>${a.anio}</b>`);
+    if(a.horas_uso) detalles.push(`Horas de uso: <b>${a.horas_uso}</b>`);
+    if(a.cantidad) detalles.push(`Cantidad: <b>${a.cantidad} ${a.unidad||''}</b>`);
+    return `<article class="card">
+      <div class="card-foto">${foto}
+        <span class="sello">${a.categoria}</span>
+        ${a.vendido?'<span class="sello vendido">VENDIDO</span>':''}
+      </div>
+      <div class="card-body">
+        <h3>${a.nombre}</h3>
+        ${a.descripcion?`<p style="font-size:.88rem;color:#5c554a">${a.descripcion}</p>`:''}
+        ${detalles.length?`<div class="specs">${detalles.map(d=>`<span>${d}</span>`).join("")}</div>`:''}
+        <div class="precio">${a.precio_lps?fmtL(a.precio_lps):"Consultar"} <small>LPS</small>${a.precio_lps?`<span class="precio-usd">≈ ${fmtUSD(a.precio_lps)} USD</span>`:''}</div>
+        ${a.vendido?'':`<a class="btn btn-ws" href="${wsLink(msg)}" target="_blank" rel="noopener">Me interesa</a>${a.modo_venta==='oferta'?ofertaBloqueHtml('articulo',a.id):''}`}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+/* ===== HACER OFERTA (ganado o artículos) ===== */
+
+function ofertaBloqueHtml(origen, itemId){
+  const cardId = origen + "-" + itemId;
+  return `
+    <button class="btn btn-oferta" onclick="toggleOferta('${cardId}')">Hacer una oferta</button>
+    <div class="form-oferta" id="oferta-${cardId}">
+      <input type="number" inputmode="numeric" id="monto-${cardId}" placeholder="¿Cuánto ofrece? (Lempiras)">
+      <textarea id="msg-${cardId}" rows="2" placeholder="Mensaje (opcional)"></textarea>
+      <button class="btn btn-fierro" onclick="enviarOferta('${origen}','${itemId}','${cardId}')">Enviar oferta</button>
+      <div class="puja-msg" id="resultado-${cardId}"></div>
+    </div>`;
+}
+
+window.toggleOferta = (cardId) => {
+  const el = document.getElementById("oferta-"+cardId);
+  if(el) el.classList.toggle("abierto");
+};
+
+window.enviarOferta = async (origen, itemId, cardId) => {
+  const resEl = document.getElementById("resultado-"+cardId);
+  if(!sesionUsuario){
+    resEl.textContent = "Debe registrarse o iniciar sesión (sección \"Subastas en línea\") para hacer una oferta.";
+    resEl.className = "puja-msg err";
+    return;
+  }
+  const monto = Number(document.getElementById("monto-"+cardId).value);
+  if(!monto){ resEl.textContent = "Escriba el monto que ofrece."; resEl.className = "puja-msg err"; return; }
+  const mensaje = document.getElementById("msg-"+cardId).value.trim();
+  const reg = { origen, comprador_id: sesionUsuario.id, monto_ofrecido: monto, mensaje: mensaje || null };
+  if(origen === "ganado") reg.ganado_id = itemId; else reg.articulo_id = itemId;
+  const {error} = await db.from("ofertas").insert(reg);
+  if(error){ resEl.textContent = "Error: " + error.message; resEl.className = "puja-msg err"; return; }
+  resEl.textContent = "¡Oferta enviada! Le avisaremos cuando el rancho responda.";
+  resEl.className = "puja-msg ok";
+};
+
+async function cargarMisOfertas(){
+  const cont = $("#mis-ofertas");
+  if(!cont) return;
+  if(!sesionUsuario){ misOfertas = []; cont.innerHTML = ""; return; }
+  const {data} = await db.from("ofertas").select("*").eq("comprador_id", sesionUsuario.id).order("created_at",{ascending:false});
+  misOfertas = (data||[]).filter(o => o.estado === "pendiente" || o.estado === "contraoferta");
+  renderMisOfertas();
+}
+
+function renderMisOfertas(){
+  const cont = $("#mis-ofertas");
+  if(!cont) return;
+  if(!misOfertas.length){ cont.innerHTML = ""; return; }
+  cont.innerHTML = `<div class="mis-ofertas"><h4>Sus ofertas</h4>` +
+    misOfertas.map(o => `
+      <div class="fila-oferta">
+        <span>Ofreció ${fmtL(o.monto_ofrecido)}${o.estado==='contraoferta' ? ` — el rancho propone ${fmtL(o.monto_contraoferta)}` : ' — esperando respuesta del rancho'}</span>
+        ${o.estado==='contraoferta' ? `
+          <span>
+            <button style="background:var(--monte);color:#fff" onclick="responderContraoferta('${o.id}',true)">Aceptar</button>
+            <button style="background:#e4dcc6;color:var(--carbon)" onclick="responderContraoferta('${o.id}',false)">Rechazar</button>
+          </span>` : ""}
+      </div>`).join("") + `</div>`;
+}
+
+window.responderContraoferta = async (id, aceptar) => {
+  const {error} = await db.rpc("responder_contraoferta", {p_oferta_id: id, p_aceptar: aceptar});
+  if(error) return alert("Error: " + error.message);
+  await cargarMisOfertas();
+};
 
 async function cargar(){
   ponerWhatsApps(); pintarFiltros();
@@ -559,6 +705,7 @@ async function cargar(){
     animales = data || [];
     db.auth.onAuthStateChange(() => refrescarSesion());
     cargarSubasta();
+    try{ await cargarArticulos(); }catch(e){ /* articulos_web aún no existe */ }
   }catch(e){
     animales = DEMO;
     $("#aviso-demo").style.display = "block";
@@ -639,7 +786,7 @@ function suscribirTiempoReal(){
 async function refrescarSesion(){
   if(!db) return;
   const {data:{session}} = await db.auth.getSession();
-  if(!session){ sesionUsuario = null; renderVivo(); renderVendedoresPublicos(); return; }
+  if(!session){ sesionUsuario = null; renderVivo(); renderVendedoresPublicos(); cargarMisOfertas(); return; }
   const {data} = await db.from("perfiles").select("*").eq("id", session.user.id).maybeSingle();
   let depositoPendiente = false;
   if(data && data.estado_verificacion === "aprobado" && !data.deposito_pagado){
@@ -659,6 +806,7 @@ async function refrescarSesion(){
   };
   renderVivo();
   renderVendedoresPublicos();
+  cargarMisOfertas();
 }
 
 function siguienteMinimo(lote){

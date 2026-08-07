@@ -389,6 +389,143 @@ create table if not exists public.facturas (
   created_at timestamptz default now()
 );
 
+-- 9b) Artículos: maquinaria agrícola, silobolsa y pacas de heno —
+--     todo lo que no es ganado pero se vende igual desde el catálogo.
+create table if not exists public.articulos_web (
+  id uuid primary key default gen_random_uuid(),
+  categoria text not null check (categoria in ('Maquinaria','Silobolsa','Pacas de heno')),
+  nombre text not null,
+  descripcion text,
+  marca text,
+  modelo text,
+  anio int,
+  horas_uso numeric,
+  cantidad numeric,
+  unidad text,
+  precio_lps numeric,
+  foto_url text,
+  vendedor_id integer references public.vendedores(id_vendedor),
+  publicado boolean default true,
+  vendido boolean default false,
+  created_at timestamptz default now()
+);
+alter table public.facturas add column if not exists articulo_id uuid references public.articulos_web(id);
+
+-- 9c) Modo de venta: precio fijo directo (como hasta ahora), o que
+--     el comprador pueda "Hacer oferta" (estilo eBay). La subasta
+--     en vivo ya es su propio modo, separado (subasta_lotes).
+alter table public.ganado_web add column if not exists modo_venta text not null default 'directo';
+alter table public.articulos_web add column if not exists modo_venta text not null default 'directo';
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ganado_web_modo_venta_check') then
+    alter table public.ganado_web add constraint ganado_web_modo_venta_check check (modo_venta in ('directo','oferta'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'articulos_web_modo_venta_check') then
+    alter table public.articulos_web add constraint articulos_web_modo_venta_check check (modo_venta in ('directo','oferta'));
+  end if;
+end $$;
+
+-- Ofertas de compradores registrados (no requiere el KYC completo
+-- de la subasta en vivo — solo tener una cuenta — porque aquí no
+-- hay dinero de garantía de por medio, es solo una propuesta).
+create table if not exists public.ofertas (
+  id uuid primary key default gen_random_uuid(),
+  origen text not null check (origen in ('ganado','articulo')),
+  ganado_id uuid references public.ganado_web(id) on delete cascade,
+  articulo_id uuid references public.articulos_web(id) on delete cascade,
+  comprador_id uuid not null references auth.users(id) on delete cascade,
+  monto_ofrecido numeric not null,
+  mensaje text,
+  monto_contraoferta numeric,
+  estado text not null default 'pendiente' check (estado in ('pendiente','aceptada','rechazada','contraoferta')),
+  created_at timestamptz default now(),
+  actualizado_at timestamptz default now()
+);
+
+-- Función única para que el admin responda una oferta: aceptar
+-- (marca vendido y genera la factura sola), rechazar, o
+-- contraofertar con otro monto.
+create or replace function public.responder_oferta(p_oferta_id uuid, p_accion text, p_monto_contraoferta numeric default null)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_of public.ofertas;
+  v_nombre text;
+  v_tel text;
+begin
+  if not public.es_admin() then
+    raise exception 'Solo el administrador puede responder ofertas.';
+  end if;
+  select * into v_of from public.ofertas where id = p_oferta_id;
+  if not found then
+    raise exception 'Oferta no encontrada.';
+  end if;
+
+  if p_accion = 'aceptar' then
+    select nombre, telefono into v_nombre, v_tel from public.perfiles where id = v_of.comprador_id;
+    if v_of.origen = 'ganado' then
+      update public.ganado_web set vendido = true where id = v_of.ganado_id;
+      insert into public.facturas (origen, ganado_id, comprador_id, comprador_nombre, comprador_telefono, monto_lps)
+        values ('catalogo', v_of.ganado_id, v_of.comprador_id, coalesce(nullif(trim(v_nombre),''),'Comprador'), v_tel, v_of.monto_ofrecido);
+    else
+      update public.articulos_web set vendido = true where id = v_of.articulo_id;
+      insert into public.facturas (origen, articulo_id, comprador_id, comprador_nombre, comprador_telefono, monto_lps)
+        values ('catalogo', v_of.articulo_id, v_of.comprador_id, coalesce(nullif(trim(v_nombre),''),'Comprador'), v_tel, v_of.monto_ofrecido);
+    end if;
+    update public.ofertas set estado = 'aceptada', actualizado_at = now() where id = p_oferta_id;
+  elsif p_accion = 'rechazar' then
+    update public.ofertas set estado = 'rechazada', actualizado_at = now() where id = p_oferta_id;
+  elsif p_accion = 'contraofertar' then
+    if p_monto_contraoferta is null then
+      raise exception 'Falta el monto de la contraoferta.';
+    end if;
+    update public.ofertas set estado = 'contraoferta', monto_contraoferta = p_monto_contraoferta, actualizado_at = now() where id = p_oferta_id;
+  else
+    raise exception 'Acción inválida.';
+  end if;
+end;
+$$;
+
+grant execute on function public.responder_oferta(uuid, text, numeric) to authenticated;
+
+-- Función para que el comprador acepte o rechace una contraoferta
+-- (la única forma de responder, para que no pueda cambiar el monto).
+create or replace function public.responder_contraoferta(p_oferta_id uuid, p_aceptar boolean)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+declare v_of public.ofertas;
+begin
+  select * into v_of from public.ofertas where id = p_oferta_id and comprador_id = auth.uid();
+  if not found then
+    raise exception 'Oferta no encontrada.';
+  end if;
+  if v_of.estado <> 'contraoferta' then
+    raise exception 'Esta oferta no tiene una contraoferta pendiente.';
+  end if;
+  if p_aceptar then
+    update public.ganado_web set vendido = true where id = v_of.ganado_id and v_of.origen = 'ganado';
+    update public.articulos_web set vendido = true where id = v_of.articulo_id and v_of.origen = 'articulo';
+    insert into public.facturas (origen, ganado_id, articulo_id, comprador_id, comprador_nombre, monto_lps)
+      values ('catalogo',
+        case when v_of.origen = 'ganado' then v_of.ganado_id else null end,
+        case when v_of.origen = 'articulo' then v_of.articulo_id else null end,
+        v_of.comprador_id,
+        coalesce((select nombre from public.perfiles where id = v_of.comprador_id), 'Comprador'),
+        v_of.monto_contraoferta);
+    update public.ofertas set estado = 'aceptada', actualizado_at = now() where id = p_oferta_id;
+  else
+    update public.ofertas set estado = 'rechazada', actualizado_at = now() where id = p_oferta_id;
+  end if;
+end;
+$$;
+
+grant execute on function public.responder_contraoferta(uuid, boolean) to authenticated;
+
 -- 10) Seguridad (RLS)
 alter table public.ganado_web enable row level security;
 alter table public.subastas_web enable row level security;
@@ -400,6 +537,8 @@ alter table public.vendedores enable row level security;
 alter table public.resenas_vendedor enable row level security;
 alter table public.depositos enable row level security;
 alter table public.facturas enable row level security;
+alter table public.articulos_web enable row level security;
+alter table public.ofertas enable row level security;
 
 -- Estas 6 tablas son del software de subasta (ruedo/proyector) y
 -- tenían RLS desactivado — es decir, cualquiera en internet con la
@@ -620,6 +759,41 @@ create policy "comprador ve su factura"
 drop policy if exists "admin gestiona facturas" on public.facturas;
 create policy "admin gestiona facturas"
   on public.facturas for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+-- Artículos (maquinaria, silobolsa, pacas de heno): mismo patrón
+-- que el catálogo de ganado.
+drop policy if exists "publico lee articulos publicados" on public.articulos_web;
+create policy "publico lee articulos publicados"
+  on public.articulos_web for select
+  using (publicado = true);
+
+drop policy if exists "admin lee todos los articulos" on public.articulos_web;
+create policy "admin lee todos los articulos"
+  on public.articulos_web for select
+  to authenticated using (public.es_admin());
+
+drop policy if exists "admin escribe articulos" on public.articulos_web;
+create policy "admin escribe articulos"
+  on public.articulos_web for all
+  to authenticated using (public.es_admin()) with check (public.es_admin());
+
+-- Ofertas: el comprador ve y crea las suyas (y responde
+-- contraofertas solo con la función de arriba); el admin las ve y
+-- responde todas.
+drop policy if exists "comprador ve sus ofertas" on public.ofertas;
+create policy "comprador ve sus ofertas"
+  on public.ofertas for select
+  to authenticated using (comprador_id = auth.uid() or public.es_admin());
+
+drop policy if exists "comprador hace oferta" on public.ofertas;
+create policy "comprador hace oferta"
+  on public.ofertas for insert
+  to authenticated with check (comprador_id = auth.uid());
+
+drop policy if exists "admin gestiona ofertas" on public.ofertas;
+create policy "admin gestiona ofertas"
+  on public.ofertas for all
   to authenticated using (public.es_admin()) with check (public.es_admin());
 
 -- Tiempo real: para que el precio y las pujas se actualicen
