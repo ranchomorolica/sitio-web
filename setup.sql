@@ -128,6 +128,7 @@ alter table public.vendedores add column if not exists nombre_finca text;
 alter table public.vendedores add column if not exists ubicacion_finca text;
 alter table public.vendedores add column if not exists descripcion text;
 alter table public.vendedores add column if not exists estado text not null default 'aprobado';
+alter table public.vendedores add column if not exists alias_publico text;
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'vendedores_estado_check') then
@@ -139,11 +140,24 @@ end $$;
 -- real como nombre de finca hasta que el admin lo edite.
 update public.vendedores set nombre_finca = nombre_vendedor where nombre_finca is null;
 
--- Vista pública y segura: solo lo necesario para mostrar el
--- directorio de vendedores en la página (nunca su identidad,
--- teléfono ni comisión pactada — esos quedan solo para el admin).
+-- Apodo público (estilo eBay: nunca el nombre real de identidad).
+-- A los que ya existían se les genera un apodo razonable — nombre
+-- de pila + inicial del apellido — que el admin puede cambiar por
+-- cualquier otro alias desde el panel cuando quiera.
+update public.vendedores
+set alias_publico = coalesce(alias_publico, nullif(trim(
+  split_part(trim(nombre_vendedor), ' ', 1) ||
+  case when split_part(trim(nombre_vendedor), ' ', 2) <> ''
+       then ' ' || left(split_part(trim(nombre_vendedor), ' ', 2), 1) || '.'
+       else '' end
+), ''), 'Vendedor #' || id_vendedor)
+where alias_publico is null;
+
+-- Vista pública y segura: solo el apodo y la ubicación/descripción
+-- general de la finca — NUNCA el nombre real, identidad, teléfono,
+-- correo ni comisión pactada, que quedan solo para el admin.
 create or replace view public.vendedores_publico as
-select id_vendedor as id, nombre_vendedor, coalesce(nombre_finca, nombre_vendedor) as nombre_finca,
+select id_vendedor as id, coalesce(alias_publico, 'Vendedor #' || id_vendedor) as alias_publico,
        ubicacion_finca, descripcion
 from public.vendedores
 where coalesce(estado, 'aprobado') = 'aprobado';

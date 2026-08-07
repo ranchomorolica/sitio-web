@@ -262,7 +262,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
       <div><label>Teléfono</label><input id="v-telefono" placeholder="504..."></div>
       <div><label>Correo</label><input id="v-correo" type="email" placeholder="correo@ejemplo.com"></div>
     </div>
-    <label>Nombre de la finca (para mostrar en la página)</label><input id="v-finca" placeholder="Finca El Roble">
+    <label>Nombre de la finca (uso interno suyo, no se publica)</label><input id="v-finca" placeholder="Finca El Roble">
+    <label>Apodo público (así aparece en la página — nunca su nombre real completo)</label><input id="v-alias" placeholder="Ej: Daniel A. / El Roble">
     <label>Ubicación de la finca</label><input id="v-ubicacion" placeholder="Catacamas, Olancho">
     <label>Descripción</label><textarea id="v-desc" rows="2"></textarea>
     <div class="fila">
@@ -889,8 +890,8 @@ async function cargarVendedores(){
     return `<div class="lista-item">
       <div class="mini">${(v.nombre_vendedor||"?").charAt(0).toUpperCase()}</div>
       <div class="li-info">
-        <b>${v.nombre_finca || v.nombre_vendedor}</b>
-        ${v.nombre_vendedor} · ${v.telefono||"sin teléfono"} · Comisión ${v.comision_pactada}%<br>
+        <b>${v.nombre_vendedor}</b> <span style="color:#7a7263">(público: "${v.alias_publico||"—"}")</span>
+        ${v.telefono||"sin teléfono"} · Comisión ${v.comision_pactada}%<br>
         ${prom ? `★ ${prom} (${rk.n} reseña${rk.n===1?"":"s"})` : "Sin reseñas aún"}
         <span class="pill ${estado==='aprobado'?'pub':estado==='rechazado'?'vend':'oculto'}">${estado}</span>
         <div class="contactos">
@@ -912,14 +913,14 @@ window.editarVendedor = id => {
   $("#v-id").value=v.id_vendedor; $("#v-nombre-contacto").value=v.nombre_vendedor||""; $("#v-telefono").value=v.telefono||"";
   $("#v-identidad").value=v.identidad||""; $("#v-procedencia").value=v.procedencia||"";
   $("#v-correo").value=v.correo||"";
-  $("#v-finca").value=v.nombre_finca||""; $("#v-ubicacion").value=v.ubicacion_finca||""; $("#v-desc").value=v.descripcion||"";
+  $("#v-finca").value=v.nombre_finca||""; $("#v-alias").value=v.alias_publico||""; $("#v-ubicacion").value=v.ubicacion_finca||""; $("#v-desc").value=v.descripcion||"";
   $("#v-comision").value=v.comision_pactada; $("#v-estado").value=v.estado||"aprobado";
   $("#btn-cancelar-vendedor").style.display = "block";
   window.scrollTo({top:0, behavior:"smooth"});
 };
 
 function limpiarVendedor(){
-  ["v-id","v-nombre-contacto","v-telefono","v-identidad","v-procedencia","v-correo","v-finca","v-ubicacion","v-desc"].forEach(i=>$("#"+i).value="");
+  ["v-id","v-nombre-contacto","v-telefono","v-identidad","v-procedencia","v-correo","v-finca","v-alias","v-ubicacion","v-desc"].forEach(i=>$("#"+i).value="");
   $("#v-comision").value = 4; $("#v-estado").value = "aprobado";
   $("#btn-cancelar-vendedor").style.display = "none";
 }
@@ -939,6 +940,7 @@ $("#btn-guardar-vendedor").onclick = async () => {
     identidad: $("#v-identidad").value.trim(), procedencia: $("#v-procedencia").value.trim(),
     correo: $("#v-correo").value.trim() || null,
     nombre_finca: $("#v-finca").value.trim() || nombre_vendedor,
+    alias_publico: $("#v-alias").value.trim() || nombre_vendedor.split(" ")[0],
     ubicacion_finca: $("#v-ubicacion").value.trim(),
     descripcion: $("#v-desc").value.trim(),
     comision_pactada: Number($("#v-comision").value) || 0,
@@ -969,7 +971,7 @@ function descargarCsv(nombreArchivo, filas){
 
 $("#btn-csv-vendedores").onclick = () => {
   descargarCsv("vendedores-rancho-morolica.csv", (window._vendedores||[]).map(v => ({
-    finca: v.nombre_finca, vendedor: v.nombre_vendedor, telefono: v.telefono||"",
+    finca: v.nombre_finca, vendedor: v.nombre_vendedor, apodo_publico: v.alias_publico||"", telefono: v.telefono||"",
     correo: v.correo||"", identidad: v.identidad||"", procedencia: v.procedencia||"",
     ubicacion: v.ubicacion_finca||"", comision_pactada: v.comision_pactada, estado: v.estado||"aprobado"
   })));

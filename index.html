@@ -607,7 +607,7 @@ function pintar(){
       <div class="card-body">
         <span class="card-lote">Lote ${a.lote}</span>
         <h3>${a.nombre || a.categoria}</h3>
-        ${vendedor ? `<span class="vendedor-badge">Consignado por ${vendedor.nombre_finca}${vendedor._prom ? " · ★ "+vendedor._prom : ""}</span>` : ""}
+        ${vendedor ? `<span class="vendedor-badge">Consignado por ${vendedor.alias_publico}${vendedor._prom ? " · ★ "+vendedor._prom : ""}</span>` : ""}
         <div class="specs">
           <span>Peso: <b>${a.peso_kg} kg</b></span>
           <span>Edad: <b>${edadTxt(a.edad_meses)}</b></span>
@@ -1221,7 +1221,7 @@ window.enviarComprobante = async () => {
 /* ===== VENDEDORES Y RESEÑAS ===== */
 
 async function cargarVendedoresPublicos(){
-  const {data} = await db.from("vendedores_publico").select("*").order("nombre_finca");
+  const {data} = await db.from("vendedores_publico").select("*").order("alias_publico");
   vendedoresPublicos = data || [];
   const {data:resenas} = await db.from("resenas_vendedor").select("*").order("created_at",{ascending:false});
   const porVendedor = {};
@@ -1249,7 +1249,7 @@ function renderVendedoresPublicos(){
     const puedeCalificar = sesionUsuario && sesionUsuario.estadoVerificacion === "aprobado";
     const yaCalifico = sesionUsuario && v._resenas.some(r => r.comprador_id === sesionUsuario.id);
     return `<div class="vend-card">
-      <h3>${v.nombre_finca}</h3>
+      <h3>${v.alias_publico}</h3>
       <div class="ubi">${v.ubicacion_finca||""}${v.descripcion ? " — "+v.descripcion : ""}</div>
       <div class="rank">${v._prom ? estrellasHtml(Math.round(v._prom)) + " " + v._prom + " (" + v._resenas.length + " reseña" + (v._resenas.length===1?"":"s") + ")" : "Sin reseñas todavía"}</div>
       ${v._resenas.slice(0,2).map(r => `<div class="resena">${estrellasHtml(r.calificacion)}${r.comentario ? " — "+r.comentario : ""}</div>`).join("")}
