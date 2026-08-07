@@ -68,6 +68,10 @@ alter table public.perfiles add column if not exists estado_verificacion text no
 alter table public.perfiles add column if not exists motivo_rechazo text;
 alter table public.perfiles add column if not exists deposito_pagado boolean not null default false;
 alter table public.perfiles add column if not exists correo text;
+alter table public.perfiles add column if not exists fecha_nacimiento date;
+alter table public.perfiles add column if not exists ocupacion text;
+alter table public.perfiles add column if not exists referencia_nombre text;
+alter table public.perfiles add column if not exists referencia_telefono text;
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'perfiles_estado_verificacion_check') then
@@ -109,13 +113,38 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.manejar_nuevo_usuario();
 
--- Función auxiliar: ¿el usuario actual es administrador?
+-- Verificación en dos pasos (2FA/TOTP de Supabase): esta función
+-- dice "sí, puede continuar" en dos casos — (a) el usuario nunca
+-- activó el 2FA (no le exigimos algo que no configuró), o (b) sí
+-- lo activó Y ya completó el código de su app de autenticación en
+-- esta sesión (aal2). Si activó el 2FA pero todavía no completó el
+-- código, devuelve false — así ni siquiera con la contraseña
+-- correcta puede pujar, publicar ni entrar como admin sin el
+-- segundo paso. Patrón oficial recomendado por Supabase.
+create or replace function public.verificacion_dos_pasos_ok()
+returns boolean
+language sql stable
+security definer set search_path = public
+as $$
+  select case
+    when exists (
+      select 1 from auth.mfa_factors
+      where user_id = auth.uid() and status = 'verified'
+    )
+    then coalesce((select auth.jwt()->>'aal'), '') = 'aal2'
+    else true
+  end;
+$$;
+
+-- Función auxiliar: ¿el usuario actual es administrador? También
+-- exige el segundo paso de verificación si el admin lo activó.
 create or replace function public.es_admin()
 returns boolean
 language sql stable
 security definer set search_path = public
 as $$
-  select coalesce((select es_admin from public.perfiles where id = auth.uid()), false);
+  select coalesce((select es_admin from public.perfiles where id = auth.uid()), false)
+         and public.verificacion_dos_pasos_ok();
 $$;
 
 -- 5) Vendedores: esta tabla YA EXISTÍA de su software de subasta
@@ -175,16 +204,24 @@ grant select on public.vendedores_publico to anon, authenticated;
 -- hasta que usted lo revise y lo apruebe. La comisión pactada la
 -- decide siempre el rancho (queda en 4% por defecto, ajustable al
 -- aprobar), nunca el propio vendedor.
+drop function if exists public.registrar_vendedor(text,text,text,text,text,text,text,text,text);
 create or replace function public.registrar_vendedor(
   p_nombre text, p_telefono text, p_correo text default null, p_identidad text default null,
   p_procedencia text default null, p_nombre_finca text default null, p_ubicacion_finca text default null,
-  p_descripcion text default null, p_alias_publico text default null
+  p_descripcion text default null, p_alias_publico text default null, p_trampa text default null
 )
 returns void
 language plpgsql
 security definer set search_path = public
 as $$
 begin
+  -- "Campo trampa": invisible para una persona, pero un robot que
+  -- llena todos los campos de un formulario sí lo llena. Si viene
+  -- con algo escrito, fingimos que todo salió bien y no guardamos
+  -- nada — así el robot no sabe que lo detectamos.
+  if coalesce(trim(p_trampa), '') <> '' then
+    return;
+  end if;
   if coalesce(trim(p_nombre), '') = '' or coalesce(trim(p_telefono), '') = '' then
     raise exception 'Nombre y teléfono son obligatorios.';
   end if;
@@ -202,7 +239,7 @@ begin
 end;
 $$;
 
-grant execute on function public.registrar_vendedor(text,text,text,text,text,text,text,text,text) to anon, authenticated;
+grant execute on function public.registrar_vendedor(text,text,text,text,text,text,text,text,text,text) to anon, authenticated;
 
 -- Reseñas y ranking de esos vendedores, dejadas por compradores
 -- ya verificados. vendedor_id es integer porque así es la llave
@@ -278,6 +315,9 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'Debe iniciar sesión para pujar.';
+  end if;
+  if not public.verificacion_dos_pasos_ok() then
+    raise exception 'Complete el código de verificación en dos pasos para pujar.';
   end if;
 
   select * into v_perfil from public.perfiles where id = auth.uid();
@@ -580,6 +620,9 @@ declare
   v_com numeric;
   v_factura public.facturas;
 begin
+  if not public.verificacion_dos_pasos_ok() then
+    raise exception 'Complete el código de verificación en dos pasos para marcar una venta.';
+  end if;
   select comision_marketplace_pct into v_pct from public.config_sitio where id = true;
   v_pct := coalesce(v_pct, 0);
 

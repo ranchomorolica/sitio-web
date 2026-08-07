@@ -79,11 +79,15 @@ Esto reemplaza la puja por WhatsApp: los compradores pujan directo en la página
 3. **Los compradores**: entran a la página, crean su cuenta (nombre, WhatsApp, correo, contraseña) y luego pasan por el proceso de verificación y depósito descrito abajo. Una vez aprobados, pujan con un botón; el precio y quién va ganando se actualizan solos, para todos, sin recargar la página.
 4. **Cuando se cierra la puja**: presione **"Vendido"** — esto guarda el comprador ganador y el monto final, y genera automáticamente la factura/comprobante (se abre solo en una pestaña nueva, lista para imprimir o guardar como PDF). O presione **"Cerrar sin venta"** si no hubo comprador. Pase al siguiente lote.
 
+## "Mi cuenta": un solo lugar para iniciar sesión, verificarse y pujar
+
+Antes, el formulario para crear cuenta o iniciar sesión solo aparecía durante una subasta en vivo — fuera de esos momentos, nadie podía registrarse, completar su verificación ni publicar. Se corrigió: ahora hay una sección fija **"Mi cuenta"** en el menú de la página, visible siempre (no solo el día de la subasta). Ahí es donde el comprador crea su cuenta, inicia sesión, completa su verificación (KYC), sube su depósito y activa su verificación en dos pasos — todo en un solo lugar. Durante la subasta en vivo, si a alguien le falta un paso, la página lo manda directo a "Mi cuenta" a completarlo.
+
 ## Verificar compradores antes de admitirlos (KYC)
 
-Cuando alguien crea su cuenta en la página para pujar, no puede pujar de inmediato: primero debe completar sus datos (número de identidad, dirección, estado civil) y subir fotos de su identidad (frente y dorso). Esto queda pendiente hasta que usted lo revise:
+Cuando alguien crea su cuenta en la página para pujar, no puede pujar de inmediato: primero debe completar sus datos en **"Mi cuenta"** (número de identidad, dirección, estado civil, y ahora también fecha de nacimiento, ocupación y una referencia personal — estos tres últimos son opcionales) y subir fotos de su identidad (frente y dorso). Esto queda pendiente hasta que usted lo revise:
 
-1. En `/admin.html`, sección **"Verificación de compradores"**, vea la lista de quienes están esperando aprobación.
+1. En `/admin.html`, sección **"Verificación de compradores"**, vea la lista de quienes están esperando aprobación, con todos los datos que dejó.
 2. Presione **"Ver ID"** para abrir las fotos de su identidad (se abren en pestañas nuevas; solo usted puede verlas, están guardadas en un espacio privado).
 3. Presione **"Aprobar"** o **"Rechazar"** (si rechaza, puede escribir el motivo — se lo mostramos al comprador en la página, y él puede escribirle por WhatsApp para corregir).
 4. Un comprador aprobado todavía no puede pujar hasta pagar su depósito de garantía (siguiente sección).
@@ -95,6 +99,29 @@ Después de ser aprobado, la página le muestra al comprador el monto del depós
 1. Configure sus datos bancarios una sola vez en `/admin.html` → **"Configuración del sitio"** (también ahí se ajusta el monto del depósito y el tipo de cambio para mostrar precios en dólares).
 2. Cuando un comprador suba su comprobante, aparecerá en `/admin.html` → **"Depósitos de garantía"**. Verifique que el dinero llegó a su cuenta y presione **"Ver comprobante"** para confirmar el monto.
 3. Presione **"Aprobar"** — recién ahí ese comprador puede pujar. Si algo no cuadra, presione **"Rechazar"** con el motivo.
+
+## Verificación en dos pasos (2FA) — para usted y para sus compradores/vendedores
+
+Ahora, además de la contraseña, cualquier cuenta (la suya de administrador, o la de un comprador/vendedor) puede activar un segundo paso: un código de 6 dígitos que cambia cada 30 segundos, generado por una app en su teléfono (Google Authenticator, Authy, o cualquiera similar — son gratis). Es **opcional por cuenta** — nadie queda obligado si no lo activa, pero quien sí lo activa, ya no puede entrar solo con la contraseña, ni siquiera si alguien más la adivina o la roba.
+
+- **Usted (administrador)**: en `/admin.html`, sección **"Seguridad de mi cuenta"**, presione **"Activar verificación en dos pasos"**, escanee el código QR con su app, y escriba el código que le muestre para confirmar. Se lo recomiendo mucho — su cuenta puede editar todo el sitio.
+- **Sus compradores/vendedores**: en la página, sección **"Mi cuenta"**, tienen la misma opción, en la parte de abajo una vez que iniciaron sesión.
+- Una vez activado, cada vez que esa cuenta inicie sesión (con la contraseña correcta), la página le va a pedir el código de 6 dígitos antes de dejarlo entrar.
+- Si alguien pierde el teléfono con el que activó el código, escríbame para desactivárselo manualmente desde la base de datos (por ahora no hay una recuperación automática — es la misma limitación de cualquier 2FA).
+- Por dentro, esto se hace con la verificación en dos pasos que ya trae Supabase (no es una imitación): la base de datos exige el código real, no solo la página — así nadie lo puede saltar editando el sitio.
+
+## "No soy un robot" en los formularios públicos (Cloudflare Turnstile)
+
+Para que robots automatizados no llenen de spam el registro de cuentas ni el de vendedores, se agregó soporte para **Cloudflare Turnstile** — el widget "no soy un robot" que usa Cloudflare (parecido al de Google, pero gratis y sin anuncios). Por ahora está **apagado** hasta que usted lo configure (no afecta nada mientras tanto). Para activarlo:
+
+1. Cree una cuenta gratis en **dash.cloudflare.com** (no pide tarjeta).
+2. En el menú, busque **Turnstile** → **Add site** → póngale un nombre (ej. "Rancho Morolica") y como dominio escriba `ranchomorolica.com`.
+3. Le va a dar dos claves: una **Site Key** (pública) y una **Secret Key** (privada, no la comparta).
+4. Abra `index.html` y `admin.html`, busque `TURNSTILE_SITE_KEY` en la sección `CONFIG` de cada archivo, y pegue ahí la Site Key (en los dos archivos).
+5. En **Supabase** → **Authentication** → **Settings** (o "Attack Protection" / "Bot and Abuse Protection", según la versión) → active **"Enable Captcha protection"**, elija **Turnstile** y pegue ahí la Secret Key. Guarde.
+6. Listo — desde ese momento, el login, el registro de cuentas y el registro de vendedores van a pedir resolver el widget antes de continuar.
+
+Mientras no haga estos pasos, todo sigue funcionando normal, solo que sin esta capa extra. Aparte, el formulario de "Regístrese como vendedor" ya tiene un filtro básico (un campo invisible) que detiene a los robots más simples aunque usted no configure Turnstile.
 
 ## Vendedores externos (consignatarios) y sus reseñas
 
@@ -189,6 +216,7 @@ Esto quedó fuera de este cambio porque comprar un dominio requiere su tarjeta y
 - ~~Fase 2: registro de vendedores terceros~~ — ya está integrada arriba.
 - ~~Fase 3: pujas en tiempo real~~ — ya está integrada arriba.
 - ~~Fase 4: publicaciones de usuarios (marketplace) con moderación~~ — ya está integrada arriba.
-- **Fase 5**: cobro real de la comisión de mercado con PixelPay, y boletines/promociones automáticas por correo — ambas listas para conectar en cuanto usted tenga las cuentas (ver secciones de arriba); app instalable (PWA) para notificaciones cuando empieza un lote nuevo.
+- ~~Fase 5: autorregistro de vendedores, verificación en dos pasos y filtro anti-robots~~ — ya está integrada arriba (Turnstile queda apagado hasta que usted lo configure).
+- **Fase 6**: cobro real de la comisión de mercado con PixelPay, y boletines/promociones automáticas por correo — ambas listas para conectar en cuanto usted tenga las cuentas (ver secciones de arriba); app instalable (PWA) para notificaciones cuando empieza un lote nuevo.
 
 Soli Deo Gloria 🐂

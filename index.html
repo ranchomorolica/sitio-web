@@ -292,6 +292,7 @@ footer a:hover{color:var(--fierro)}
       <a href="#maquinaria">Maquinaria</a>
       <a href="#subastas">Subastas en línea</a>
       <a href="#vendedores">Vendedores</a>
+      <a href="#mi-cuenta">Mi cuenta</a>
       <a href="#vender">Vende con nosotros</a>
       <a href="#ubicacion">Ubicación</a>
       <a class="btn btn-ws" id="ws-nav" href="#" target="_blank" rel="noopener">WhatsApp</a>
@@ -402,6 +403,16 @@ footer a:hover{color:var(--fierro)}
   </div>
 </section>
 
+<section id="mi-cuenta">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 class="display">Mi cuenta</h2>
+      <p>Cree su cuenta o inicie sesión aquí — el mismo lugar para pujar en las subastas en vivo, publicar sus propios artículos o registrarse como vendedor.</p>
+    </div>
+    <div id="cuenta-contenido"></div>
+  </div>
+</section>
+
 <section id="vender">
   <div class="wrap">
     <div class="dos-col">
@@ -444,6 +455,7 @@ footer a:hover{color:var(--fierro)}
         <div class="campo"><label>Descripción breve (se muestra al público)</label><textarea id="rv-desc" rows="2"></textarea></div>
         <div class="campo"><label>Apodo público (así lo verán los compradores — no su nombre real)</label><input id="rv-alias" placeholder="Ej: Daniel A. / El Roble"></div>
         <p style="font-size:.8rem;color:#7a7263;margin:-2px 0 10px">Su nombre real, identidad, teléfono y correo nunca se muestran en la página — solo los ve el rancho.</p>
+        <input id="rv-trampa" name="pagina_web" autocomplete="off" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
         <button class="btn btn-fierro" id="btn-registro-vendedor" onclick="enviarRegistroVendedor()">Enviar solicitud</button>
         <div class="puja-msg" id="rv-msg"></div>
       </div>
@@ -542,6 +554,7 @@ footer a:hover{color:var(--fierro)}
 </a>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
 /* ============================================================
    CONFIGURACIÓN — EDITE SOLO ESTA SECCIÓN
@@ -550,14 +563,15 @@ const CONFIG = {
   SUPABASE_URL: "https://kjcvlgfgqvwfjgcsqbhu.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_mKwvZz9rw4n0f30RBqbGFw_dwBBqSdw",   // Supabase → Settings → API → anon public
   WHATSAPP: "50432598724",                        // Su número: 504 + 8 dígitos, sin espacios
-  WHATSAPP_MOSTRAR: "3259-8724"                   // Como se mostrará en pantalla
+  WHATSAPP_MOSTRAR: "3259-8724",                  // Como se mostrará en pantalla
+  TURNSTILE_SITE_KEY: "PEGUE_AQUI_SU_SITE_KEY_DE_CLOUDFLARE_TURNSTILE"   // deje como está si todavía no lo configura
 };
 /* ============================================================ */
 
 const CATEGORIAS = ["Todos","Toro","Vaca parida","Vaca preñada","Vaquilla","Novillo","Ternero","Ternera"];
 let animales = [], filtro = "Todos", busqueda = "";
 let db = null;
-let sesionUsuario = null, authTab = "login";
+let sesionUsuario = null, authTab = "login", mfaPendiente = false;
 let subastaActivaId = null, loteVivo = null, ultimoLoteId = null, historialCache = [], canalSubasta = null;
 let configSitio = { tipo_cambio_lps_por_usd: 26.5, deposito_garantia_lps: 10000, datos_bancarios: "" };
 let vendedoresPublicos = [], resenaVendedorSel = null;
@@ -781,7 +795,8 @@ window.enviarRegistroVendedor = async () => {
     p_nombre_finca: document.getElementById("rv-finca").value.trim() || null,
     p_ubicacion_finca: document.getElementById("rv-ubicacion").value.trim() || null,
     p_descripcion: document.getElementById("rv-desc").value.trim() || null,
-    p_alias_publico: document.getElementById("rv-alias").value.trim() || null
+    p_alias_publico: document.getElementById("rv-alias").value.trim() || null,
+    p_trampa: document.getElementById("rv-trampa").value
   });
   if(error){
     msgEl.textContent = "Error: " + error.message;
@@ -805,8 +820,13 @@ function renderMiPublicacionEstado(){
   const cont = document.getElementById("mi-pub-estado");
   const form = document.getElementById("mi-pub-form");
   if(!cont) return;
+  if(mfaPendiente){
+    cont.innerHTML = `<p style="color:#5c554a;font-size:.92rem">Complete su verificación en dos pasos en <a href="#mi-cuenta">Mi cuenta</a> para poder publicar.</p>`;
+    form.style.display = "none";
+    return;
+  }
   if(!sesionUsuario){
-    cont.innerHTML = `<p style="color:#5c554a;font-size:.92rem">Inicie sesión o cree su cuenta en la sección <a href="#subastas">Subastas en línea</a> para poder publicar sus propios artículos.</p>`;
+    cont.innerHTML = `<p style="color:#5c554a;font-size:.92rem">Inicie sesión o cree su cuenta en <a href="#mi-cuenta">Mi cuenta</a> para poder publicar sus propios artículos.</p>`;
     form.style.display = "none";
     document.getElementById("mis-publicaciones").innerHTML = "";
     return;
@@ -817,7 +837,7 @@ function renderMiPublicacionEstado(){
     return;
   }
   if(sesionUsuario.estadoVerificacion !== "aprobado"){
-    cont.innerHTML = `<p style="color:#5c554a;font-size:.92rem">Para publicar sus propios artículos primero necesitamos verificar su identidad. Complete ese paso (gratis, una sola vez) en <a href="#subastas">Subastas en línea</a>.</p>`;
+    cont.innerHTML = `<p style="color:#5c554a;font-size:.92rem">Para publicar sus propios artículos primero necesitamos verificar su identidad. Complete ese paso (gratis, una sola vez) en <a href="#mi-cuenta">Mi cuenta</a>.</p>`;
     form.style.display = "none";
     cargarMisPublicaciones();
     return;
@@ -1017,7 +1037,16 @@ function suscribirTiempoReal(){
 async function refrescarSesion(){
   if(!db) return;
   const {data:{session}} = await db.auth.getSession();
-  if(!session){ sesionUsuario = null; renderVivo(); renderVendedoresPublicos(); cargarMisOfertas(); renderMiPublicacionEstado(); return; }
+  if(!session){ sesionUsuario = null; mfaPendiente = false; renderVivo(); renderVendedoresPublicos(); cargarMisOfertas(); renderMiPublicacionEstado(); renderCuenta(); return; }
+
+  const {data:aal} = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  mfaPendiente = !!(aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2");
+  if(mfaPendiente){
+    sesionUsuario = { id: session.user.id, nombre: session.user.email, bloqueado:false, estadoVerificacion:"pendiente", tieneIdentidad:false, depositoPagado:false, depositoPendiente:false };
+    renderVivo(); renderCuenta();
+    return;
+  }
+
   const {data} = await db.from("perfiles").select("*").eq("id", session.user.id).maybeSingle();
   let depositoPendiente = false;
   if(data && data.estado_verificacion === "aprobado" && !data.deposito_pagado){
@@ -1039,6 +1068,7 @@ async function refrescarSesion(){
   renderVendedoresPublicos();
   cargarMisOfertas();
   renderMiPublicacionEstado();
+  renderCuenta();
 }
 
 function siguienteMinimo(lote){
@@ -1072,8 +1102,45 @@ function renderVivo(){
 }
 
 function accionVivoHtml(){
+  if(mfaPendiente){
+    return `<div class="puja-msg err">Complete su verificación en dos pasos en <a href="#mi-cuenta">Mi cuenta</a> para pujar.</div>`;
+  }
   if(!sesionUsuario){
+    return `<div class="puja-msg err">Inicie sesión o cree su cuenta en <a href="#mi-cuenta">Mi cuenta</a> para pujar.</div>`;
+  }
+  if(sesionUsuario.bloqueado){
+    return `<div class="puja-msg err">Su cuenta no puede pujar en este momento. Escríbanos por WhatsApp.</div>`;
+  }
+  if(sesionUsuario.estadoVerificacion !== "aprobado" || !sesionUsuario.depositoPagado){
     return `
+      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+      <div class="puja-msg err">Complete su verificación y depósito en <a href="#mi-cuenta">Mi cuenta</a> para poder pujar.</div>`;
+  }
+  return `
+    <div class="pujando-como"><span>Pujando como <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+    <button class="btn btn-pujar" id="btn-pujar" onclick="enviarPuja()">Pujar ${fmtL(siguienteMinimo(loteVivo))}</button>
+    <div class="puja-msg" id="puja-msg"></div>`;
+}
+
+/* ===== "MI CUENTA": login/registro, KYC, depósito y 2FA, todo en un solo lugar siempre visible ===== */
+
+function renderCuenta(){
+  const cont = document.getElementById("cuenta-contenido");
+  if(!cont) return;
+
+  if(mfaPendiente){
+    cont.innerHTML = `
+      <div class="kyc-box">
+        <p style="font-size:.85rem;color:#5c554a;margin-bottom:10px">Abra su app de autenticación (Google Authenticator, Authy, etc.) y escriba el código de 6 dígitos para entrar.</p>
+        <div class="campo"><label>Código</label><input id="cta-mfa-codigo" inputmode="numeric" maxlength="6" placeholder="123456"></div>
+        <button class="btn btn-fierro" onclick="verificarMfaCuenta()">Verificar</button>
+        <div class="puja-msg" id="cta-mfa-msg"></div>
+      </div>`;
+    return;
+  }
+
+  if(!sesionUsuario){
+    cont.innerHTML = `
       <div class="auth-box">
         <div class="auth-tabs">
           <button class="${authTab==='login'?'on':''}" onclick="mostrarAuthTab('login')">Ya tengo cuenta</button>
@@ -1082,27 +1149,31 @@ function accionVivoHtml(){
         ${authTab==='login' ? `
           <input id="auth-email" type="email" placeholder="Correo" autocomplete="email">
           <input id="auth-pass" type="password" placeholder="Contraseña" autocomplete="current-password">
-          <button class="btn btn-fierro" onclick="hacerLogin()">Entrar y pujar</button>
+          <div id="cta-turnstile" style="margin:10px 0"></div>
+          <button class="btn btn-fierro" onclick="hacerLogin()">Entrar</button>
         ` : `
           <input id="auth-nombre" type="text" placeholder="Su nombre completo">
           <input id="auth-tel" type="tel" placeholder="Su WhatsApp (504...)">
           <input id="auth-email" type="email" placeholder="Correo" autocomplete="email">
           <input id="auth-pass" type="password" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="new-password">
-          <button class="btn btn-fierro" onclick="hacerRegistro()">Crear cuenta y pujar</button>
+          <div id="cta-turnstile" style="margin:10px 0"></div>
+          <button class="btn btn-fierro" onclick="hacerRegistro()">Crear cuenta</button>
         `}
         <div class="puja-msg" id="auth-msg"></div>
       </div>`;
-  }
-  if(sesionUsuario.bloqueado){
-    return `<div class="puja-msg err">Su cuenta no puede pujar en este momento. Escríbanos por WhatsApp.</div>`;
+    intentarPintarTurnstileCuenta();
+    return;
   }
 
-  if(sesionUsuario.estadoVerificacion === "pendiente" && !sesionUsuario.tieneIdentidad){
-    return `
-      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+  let estadoHtml;
+  if(sesionUsuario.bloqueado){
+    estadoHtml = `<div class="puja-msg err">Su cuenta está bloqueada. Escríbanos por WhatsApp para resolverlo.</div>`;
+  } else if(sesionUsuario.estadoVerificacion === "pendiente" && !sesionUsuario.tieneIdentidad){
+    estadoHtml = `
       <div class="kyc-box">
-        <p style="font-size:.85rem;color:#5c554a;margin-bottom:10px">Para pujar, el rancho necesita verificar su identidad. Complete estos datos una sola vez.</p>
+        <p style="font-size:.85rem;color:#5c554a;margin-bottom:10px">Para pujar o publicar sus propios artículos, el rancho necesita verificar su identidad. Complete estos datos una sola vez.</p>
         <div class="campo"><label>Número de identidad *</label><input id="kyc-identidad"></div>
+        <div class="campo"><label>Fecha de nacimiento</label><input id="kyc-fecha-nacimiento" type="date"></div>
         <div class="campo"><label>Dirección actual *</label><input id="kyc-direccion"></div>
         <div class="campo"><label>Estado civil *</label>
           <select id="kyc-estado-civil">
@@ -1111,39 +1182,27 @@ function accionVivoHtml(){
             <option>Divorciado(a)</option><option>Viudo(a)</option>
           </select>
         </div>
+        <div class="campo"><label>Ocupación</label><input id="kyc-ocupacion" placeholder="¿A qué se dedica?"></div>
+        <div class="campo"><label>Referencia personal — nombre</label><input id="kyc-ref-nombre" placeholder="Alguien que lo conozca"></div>
+        <div class="campo"><label>Referencia personal — teléfono</label><input id="kyc-ref-telefono" placeholder="504..."></div>
         <div class="campo"><label>Foto de identidad — frente *</label><input id="kyc-foto-frente" type="file" accept="image/*"></div>
         <div class="campo"><label>Foto de identidad — dorso *</label><input id="kyc-foto-dorso" type="file" accept="image/*"></div>
         <button class="btn btn-fierro" id="btn-kyc" onclick="enviarKyc()">Enviar para revisión</button>
         <div class="puja-msg" id="kyc-msg"></div>
       </div>`;
-  }
-
-  if(sesionUsuario.estadoVerificacion === "pendiente"){
-    return `
-      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
-      <div class="estado-info"><b>Sus datos están en revisión</b><p>El rancho está verificando su identidad. Le avisaremos por WhatsApp cuando sea aprobado para pujar.</p></div>`;
-  }
-
-  if(sesionUsuario.estadoVerificacion === "rechazado"){
-    return `
-      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
-      <div class="estado-info rechazado"><b>Su registro no fue aprobado</b>
-        ${sesionUsuario.motivoRechazo ? `<p>Motivo: ${sesionUsuario.motivoRechazo}</p>` : ""}
-        <p>Escríbanos por WhatsApp para corregir sus datos.</p>
-        <a class="btn btn-ws" href="${wsLink('Hola Rancho Morolica, mi registro para pujar en línea no fue aprobado y quiero corregir mis datos.')}" target="_blank" rel="noopener">Escribir por WhatsApp</a>
-      </div>`;
-  }
-
-  if(sesionUsuario.estadoVerificacion === "aprobado" && !sesionUsuario.depositoPagado){
-    if(sesionUsuario.depositoPendiente){
-      return `
-        <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
-        <div class="estado-info"><b>Su comprobante de depósito está en revisión</b><p>En cuanto lo confirmemos podrá pujar.</p></div>`;
-    }
-    return `
-      <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+  } else if(sesionUsuario.estadoVerificacion === "pendiente"){
+    estadoHtml = `<div class="estado-info"><b>Sus datos están en revisión</b><p>El rancho está verificando su identidad. Le avisaremos por WhatsApp cuando sea aprobado.</p></div>`;
+  } else if(sesionUsuario.estadoVerificacion === "rechazado"){
+    estadoHtml = `<div class="estado-info rechazado"><b>Su registro no fue aprobado</b>
+      ${sesionUsuario.motivoRechazo ? `<p>Motivo: ${sesionUsuario.motivoRechazo}</p>` : ""}
+      <p>Escríbanos por WhatsApp para corregir sus datos.</p>
+      <a class="btn btn-ws" href="${wsLink('Hola Rancho Morolica, mi registro no fue aprobado y quiero corregir mis datos.')}" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+    </div>`;
+  } else if(sesionUsuario.estadoVerificacion === "aprobado" && !sesionUsuario.depositoPagado){
+    estadoHtml = sesionUsuario.depositoPendiente ? `
+      <div class="estado-info"><b>Su comprobante de depósito está en revisión</b><p>En cuanto lo confirmemos podrá pujar.</p></div>` : `
       <div class="estado-info aprobado">
-        <b>¡Identidad aprobada! Falta el depósito de garantía</b>
+        <b>¡Identidad aprobada! Falta el depósito de garantía para pujar</b>
         <p>Deposite o transfiera <b>${fmtL(configSitio.deposito_garantia_lps)}</b> (≈ ${fmtUSD(configSitio.deposito_garantia_lps)} USD) a:</p>
         <pre>${configSitio.datos_bancarios}</pre>
       </div>
@@ -1153,22 +1212,56 @@ function accionVivoHtml(){
         <button class="btn btn-fierro" id="btn-deposito" onclick="enviarComprobante()">Enviar comprobante</button>
         <div class="puja-msg" id="dep-msg"></div>
       </div>`;
+  } else {
+    estadoHtml = `<div class="puja-msg ok">✅ Su cuenta está lista para pujar, publicar y participar. ¡Gracias!</div>`;
   }
 
-  return `
-    <div class="pujando-como"><span>Pujando como <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
-    <button class="btn btn-pujar" id="btn-pujar" onclick="enviarPuja()">Pujar ${fmtL(siguienteMinimo(loteVivo))}</button>
-    <div class="puja-msg" id="puja-msg"></div>`;
+  cont.innerHTML = `
+    <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+    ${estadoHtml}
+    <div class="kyc-box" id="cta-2fa-box" style="margin-top:16px">
+      <h4 style="color:var(--monte);margin-bottom:8px">Verificación en dos pasos</h4>
+      <div id="cta-2fa-estado"></div>
+    </div>`;
+  cargarMfaEstadoCuenta();
 }
 
-window.mostrarAuthTab = t => { authTab = t; renderVivo(); };
+window.mostrarAuthTab = t => { authTab = t; renderCuenta(); };
+
+/* --- "No soy un robot" (Cloudflare Turnstile) para login/registro --- */
+let turnstileTokenCuenta = null;
+function turnstileListo(){ return CONFIG.TURNSTILE_SITE_KEY && !CONFIG.TURNSTILE_SITE_KEY.startsWith("PEGUE"); }
+function intentarPintarTurnstileCuenta(){
+  if(!turnstileListo() || typeof turnstile === "undefined") return;
+  const el = document.getElementById("cta-turnstile");
+  if(el && !el.hasChildNodes()){
+    turnstile.render(el, {
+      sitekey: CONFIG.TURNSTILE_SITE_KEY,
+      callback: t => { turnstileTokenCuenta = t; },
+      "expired-callback": () => { turnstileTokenCuenta = null; }
+    });
+  }
+}
+const _turnstileTimerCuenta = setInterval(() => {
+  if(typeof turnstile !== "undefined"){ clearInterval(_turnstileTimerCuenta); }
+  intentarPintarTurnstileCuenta();
+}, 300);
 
 window.hacerLogin = async () => {
   const email = document.getElementById("auth-email").value.trim();
   const pass = document.getElementById("auth-pass").value;
   const msgEl = document.getElementById("auth-msg");
-  const {error} = await db.auth.signInWithPassword({email, password: pass});
-  if(error){ msgEl.textContent = "Correo o contraseña incorrectos."; msgEl.className = "puja-msg err"; return; }
+  const opts = {};
+  if(turnstileListo()){
+    if(!turnstileTokenCuenta){ msgEl.textContent = "Complete la verificación \"No soy un robot\"."; msgEl.className = "puja-msg err"; return; }
+    opts.captchaToken = turnstileTokenCuenta;
+  }
+  const {error} = await db.auth.signInWithPassword({email, password: pass, options: opts});
+  if(error){
+    if(typeof turnstile !== "undefined") turnstile.reset();
+    turnstileTokenCuenta = null;
+    msgEl.textContent = "Correo o contraseña incorrectos."; msgEl.className = "puja-msg err"; return;
+  }
   await refrescarSesion();
 };
 
@@ -1183,13 +1276,85 @@ window.hacerRegistro = async () => {
     msgEl.className = "puja-msg err";
     return;
   }
-  const {data, error} = await db.auth.signUp({email, password: pass, options:{data:{nombre, telefono}}});
-  if(error){ msgEl.textContent = "No se pudo registrar: " + error.message; msgEl.className = "puja-msg err"; return; }
+  const opts = {data:{nombre, telefono}};
+  if(turnstileListo()){
+    if(!turnstileTokenCuenta){ msgEl.textContent = "Complete la verificación \"No soy un robot\"."; msgEl.className = "puja-msg err"; return; }
+    opts.captchaToken = turnstileTokenCuenta;
+  }
+  const {data, error} = await db.auth.signUp({email, password: pass, options: opts});
+  if(error){
+    if(typeof turnstile !== "undefined") turnstile.reset();
+    turnstileTokenCuenta = null;
+    msgEl.textContent = "No se pudo registrar: " + error.message; msgEl.className = "puja-msg err"; return;
+  }
   if(data.session){ await refrescarSesion(); }
   else { msgEl.textContent = "Cuenta creada. Revise su correo para confirmarla y luego inicie sesión."; msgEl.className = "puja-msg ok"; }
 };
 
 window.salirSesionVivo = async () => { await db.auth.signOut(); await refrescarSesion(); };
+
+/* --- Verificación en dos pasos (2FA/TOTP) --- */
+
+window.verificarMfaCuenta = async () => {
+  const codigo = document.getElementById("cta-mfa-codigo").value.trim();
+  const msgEl = document.getElementById("cta-mfa-msg");
+  if(!codigo){ msgEl.textContent = "Escriba el código de 6 dígitos."; msgEl.className = "puja-msg err"; return; }
+  const {data:factores} = await db.auth.mfa.listFactors();
+  const factor = factores && factores.totp && factores.totp.find(f=>f.status==="verified");
+  if(!factor){ msgEl.textContent = "No se encontró su método de verificación."; msgEl.className = "puja-msg err"; return; }
+  const {data:reto, error:errorReto} = await db.auth.mfa.challenge({factorId: factor.id});
+  if(errorReto){ msgEl.textContent = "Error: " + errorReto.message; msgEl.className = "puja-msg err"; return; }
+  const {error:errorVerif} = await db.auth.mfa.verify({factorId: factor.id, challengeId: reto.id, code: codigo});
+  if(errorVerif){ msgEl.textContent = "Código incorrecto."; msgEl.className = "puja-msg err"; return; }
+  await refrescarSesion();
+};
+
+async function cargarMfaEstadoCuenta(){
+  const {data} = await db.auth.mfa.listFactors();
+  const factor = data && data.totp && data.totp.find(f=>f.status==="verified");
+  const cont = document.getElementById("cta-2fa-estado");
+  if(!cont) return;
+  if(factor){
+    cont.innerHTML = `<p style="font-size:.85rem;color:#2e7d46;font-weight:700">✅ Activada.</p>
+      <button class="btn btn-gris btn-chico-cta" id="btn-desactivar-mfa-cuenta">Desactivar</button>`;
+    document.getElementById("btn-desactivar-mfa-cuenta").onclick = async () => {
+      if(!confirm("¿Desactivar la verificación en dos pasos?")) return;
+      await db.auth.mfa.unenroll({factorId: factor.id});
+      cargarMfaEstadoCuenta();
+    };
+  } else {
+    cont.innerHTML = `<p style="font-size:.85rem;color:#5c554a;margin-bottom:8px">Protege su cuenta con un código de su teléfono, además de su contraseña.</p>
+      <button class="btn btn-fierro" id="btn-activar-mfa-cuenta">Activar verificación en dos pasos</button>
+      <div id="mfa-enroll-cuenta" style="margin-top:12px"></div>`;
+    document.getElementById("btn-activar-mfa-cuenta").onclick = iniciarEnrolamientoMfaCuenta;
+  }
+}
+
+let mfaFactorEnrolandoCuenta = null;
+
+async function iniciarEnrolamientoMfaCuenta(){
+  const {data, error} = await db.auth.mfa.enroll({factorType:"totp"});
+  if(error){ alert("Error: " + error.message); return; }
+  mfaFactorEnrolandoCuenta = data.id;
+  const cont = document.getElementById("mfa-enroll-cuenta");
+  cont.innerHTML = `
+    <p style="font-size:.85rem;color:#5c554a;margin-bottom:8px">Escanee este código con Google Authenticator, Authy o similar, y escriba el código de 6 dígitos.</p>
+    <div style="max-width:200px;margin:0 auto 10px">${data.totp.qr_code}</div>
+    <p style="font-size:.7rem;color:#7a7263;text-align:center;word-break:break-all">Código manual: ${data.totp.secret}</p>
+    <input id="mfa-enroll-codigo-cuenta" inputmode="numeric" maxlength="6" placeholder="123456">
+    <button class="btn btn-fierro" id="btn-confirmar-mfa-cuenta" style="margin-top:8px">Confirmar y activar</button>
+    <div class="puja-msg" id="mfa-enroll-msg-cuenta"></div>`;
+  document.getElementById("btn-confirmar-mfa-cuenta").onclick = async () => {
+    const codigo = document.getElementById("mfa-enroll-codigo-cuenta").value.trim();
+    const msgEl = document.getElementById("mfa-enroll-msg-cuenta");
+    if(!codigo){ msgEl.textContent = "Escriba el código."; msgEl.className = "puja-msg err"; return; }
+    const {data:reto, error:errorReto} = await db.auth.mfa.challenge({factorId: mfaFactorEnrolandoCuenta});
+    if(errorReto){ msgEl.textContent = "Error: " + errorReto.message; msgEl.className = "puja-msg err"; return; }
+    const {error:errorVerif} = await db.auth.mfa.verify({factorId: mfaFactorEnrolandoCuenta, challengeId: reto.id, code: codigo});
+    if(errorVerif){ msgEl.textContent = "Código incorrecto, intente de nuevo."; msgEl.className = "puja-msg err"; return; }
+    cargarMfaEstadoCuenta();
+  };
+}
 
 window.enviarPuja = async () => {
   if(!loteVivo) return;
@@ -1220,11 +1385,15 @@ window.enviarKyc = async () => {
   const identidad = document.getElementById("kyc-identidad").value.trim();
   const direccion = document.getElementById("kyc-direccion").value.trim();
   const estadoCivil = document.getElementById("kyc-estado-civil").value;
+  const fechaNacimiento = document.getElementById("kyc-fecha-nacimiento").value || null;
+  const ocupacion = document.getElementById("kyc-ocupacion").value.trim();
+  const referenciaNombre = document.getElementById("kyc-ref-nombre").value.trim();
+  const referenciaTelefono = document.getElementById("kyc-ref-telefono").value.trim();
   const fotoFrente = document.getElementById("kyc-foto-frente").files[0];
   const fotoDorso = document.getElementById("kyc-foto-dorso").files[0];
   const msgEl = document.getElementById("kyc-msg");
   if(!identidad || !direccion || !estadoCivil || !fotoFrente || !fotoDorso){
-    msgEl.textContent = "Complete todos los campos y suba ambas fotos de su identidad.";
+    msgEl.textContent = "Complete todos los campos obligatorios (*) y suba ambas fotos de su identidad.";
     msgEl.className = "puja-msg err";
     return;
   }
@@ -1235,6 +1404,8 @@ window.enviarKyc = async () => {
     const rutaDorso = await subirArchivoPrivado("kyc-documentos", fotoDorso, "dorso");
     const {error} = await db.from("perfiles").update({
       identidad, direccion, estado_civil: estadoCivil,
+      fecha_nacimiento: fechaNacimiento, ocupacion: ocupacion || null,
+      referencia_nombre: referenciaNombre || null, referencia_telefono: referenciaTelefono || null,
       foto_id_frente_url: rutaFrente, foto_id_dorso_url: rutaDorso
     }).eq("id", sesionUsuario.id);
     if(error) throw error;

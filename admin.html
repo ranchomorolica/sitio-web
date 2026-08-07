@@ -60,8 +60,25 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <h2>Iniciar sesión</h2>
     <label>Correo</label><input id="log-email" type="email" autocomplete="email">
     <label>Contraseña</label><input id="log-pass" type="password" autocomplete="current-password">
+    <div id="log-turnstile" style="margin-top:10px"></div>
     <button class="btn btn-v" id="btn-entrar">Entrar</button>
     <div class="msg" id="log-msg"></div>
+  </div>
+
+  <!-- SEGUNDO PASO (2FA) AL INICIAR SESIÓN -->
+  <div class="tarjeta" id="sec-mfa-reto" style="display:none">
+    <h2>Verificación en dos pasos</h2>
+    <p style="color:#5c554a;font-size:.92rem;margin-bottom:10px">Abra su app de autenticación (Google Authenticator, Authy, etc.) y escriba el código de 6 dígitos.</p>
+    <label>Código</label><input id="mfa-reto-codigo" inputmode="numeric" maxlength="6" placeholder="123456">
+    <button class="btn btn-v" id="btn-mfa-reto">Verificar</button>
+    <div class="msg" id="mfa-reto-msg"></div>
+  </div>
+
+  <!-- SEGURIDAD DE LA CUENTA (2FA) -->
+  <div class="tarjeta oculto-sec" id="sec-seguridad">
+    <h2>Seguridad de mi cuenta</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Active la verificación en dos pasos para que, además de su contraseña, se necesite un código de su teléfono (Google Authenticator, Authy, etc.) para entrar a este panel.</p>
+    <div id="mfa-estado"></div>
   </div>
 
   <!-- CONFIGURACIÓN DEL SITIO -->
@@ -304,11 +321,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
 /* ===== MISMA CONFIGURACIÓN QUE index.html ===== */
 const CONFIG = {
   SUPABASE_URL: "https://kjcvlgfgqvwfjgcsqbhu.supabase.co",
-  SUPABASE_ANON_KEY: "sb_publishable_mKwvZz9rw4n0f30RBqbGFw_dwBBqSdw"
+  SUPABASE_ANON_KEY: "sb_publishable_mKwvZz9rw4n0f30RBqbGFw_dwBBqSdw",
+  TURNSTILE_SITE_KEY: "PEGUE_AQUI_SU_SITE_KEY_DE_CLOUDFLARE_TURNSTILE"   // deje como está si todavía no lo configura
 };
 /* ============================================== */
 
@@ -316,24 +335,55 @@ const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
 
-const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-moderacion","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
+const SECCIONES_ADMIN = ["#sec-seguridad","#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-moderacion","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
+
+/* ===== "NO SOY UN ROBOT" (Cloudflare Turnstile) — opcional ===== */
+let turnstileTokenLogin = null;
+function turnstileListo(){ return CONFIG.TURNSTILE_SITE_KEY && !CONFIG.TURNSTILE_SITE_KEY.startsWith("PEGUE"); }
+function intentarPintarTurnstile(){
+  if(!turnstileListo() || typeof turnstile === "undefined") return;
+  if($("#log-turnstile") && !$("#log-turnstile").hasChildNodes()){
+    turnstile.render("#log-turnstile", {
+      sitekey: CONFIG.TURNSTILE_SITE_KEY,
+      callback: t => { turnstileTokenLogin = t; },
+      "expired-callback": () => { turnstileTokenLogin = null; }
+    });
+  }
+}
+const _turnstileTimer = setInterval(() => {
+  if(typeof turnstile !== "undefined"){ intentarPintarTurnstile(); clearInterval(_turnstileTimer); }
+}, 300);
+
+function mostrarLogin(){
+  $("#sec-login").style.display = "block";
+  $("#sec-mfa-reto").style.display = "none";
+  $("#sec-no-admin").style.display = "none";
+  SECCIONES_ADMIN.forEach(s=>$(s).style.display = "none");
+  $("#btn-salir").style.display = "none";
+}
+
+function mostrarRetoMfa(){
+  $("#sec-login").style.display = "none";
+  $("#sec-mfa-reto").style.display = "block";
+  $("#sec-no-admin").style.display = "none";
+  SECCIONES_ADMIN.forEach(s=>$(s).style.display = "none");
+  $("#btn-salir").style.display = "block";
+}
 
 async function sesion(){
   const {data:{session}} = await db.auth.getSession();
-  if(!session){
-    $("#sec-login").style.display = "block";
-    $("#sec-no-admin").style.display = "none";
-    SECCIONES_ADMIN.forEach(s=>$(s).style.display = "none");
-    $("#btn-salir").style.display = "none";
-    return;
-  }
+  if(!session){ mostrarLogin(); return; }
+  const {data:aal} = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  if(aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2"){ mostrarRetoMfa(); return; }
   $("#sec-login").style.display = "none";
+  $("#sec-mfa-reto").style.display = "none";
   $("#btn-salir").style.display = "block";
   const {data:perfil} = await db.from("perfiles").select("es_admin").eq("id", session.user.id).maybeSingle();
   const esAdmin = !!(perfil && perfil.es_admin);
   SECCIONES_ADMIN.forEach(s=>$(s).style.display = esAdmin ? "block" : "none");
   $("#sec-no-admin").style.display = esAdmin ? "none" : "block";
   if(esAdmin){
+    await cargarMfaEstado();
     await cargarConfig();
     await cargarVendedores();
     await listar();
@@ -349,11 +399,78 @@ async function sesion(){
 }
 
 $("#btn-entrar").onclick = async () => {
-  const {error} = await db.auth.signInWithPassword({email:$("#log-email").value.trim(), password:$("#log-pass").value});
-  if(error) return msg("#log-msg","Correo o contraseña incorrectos.","err");
+  const opts = {};
+  if(turnstileListo()){
+    if(!turnstileTokenLogin) return msg("#log-msg","Complete la verificación \"No soy un robot\".","err");
+    opts.captchaToken = turnstileTokenLogin;
+  }
+  const {error} = await db.auth.signInWithPassword({email:$("#log-email").value.trim(), password:$("#log-pass").value, options: opts});
+  if(error){
+    if(typeof turnstile !== "undefined") turnstile.reset();
+    turnstileTokenLogin = null;
+    return msg("#log-msg","Correo o contraseña incorrectos.","err");
+  }
   sesion();
 };
 $("#btn-salir").onclick = async () => { await db.auth.signOut(); sesion(); };
+
+/* ===== VERIFICACIÓN EN DOS PASOS (2FA / TOTP) ===== */
+
+$("#btn-mfa-reto").onclick = async () => {
+  const codigo = $("#mfa-reto-codigo").value.trim();
+  if(!codigo) return msg("#mfa-reto-msg","Escriba el código de 6 dígitos.","err");
+  const {data:factores} = await db.auth.mfa.listFactors();
+  const factor = factores && factores.totp && factores.totp.find(f=>f.status==="verified");
+  if(!factor) return msg("#mfa-reto-msg","No se encontró su método de verificación.","err");
+  const {data:reto, error:errorReto} = await db.auth.mfa.challenge({factorId: factor.id});
+  if(errorReto) return msg("#mfa-reto-msg","Error: "+errorReto.message,"err");
+  const {error:errorVerif} = await db.auth.mfa.verify({factorId: factor.id, challengeId: reto.id, code: codigo});
+  if(errorVerif) return msg("#mfa-reto-msg","Código incorrecto.","err");
+  $("#mfa-reto-codigo").value = "";
+  sesion();
+};
+
+async function cargarMfaEstado(){
+  const {data} = await db.auth.mfa.listFactors();
+  const factor = data && data.totp && data.totp.find(f=>f.status==="verified");
+  const cont = $("#mfa-estado");
+  if(factor){
+    cont.innerHTML = `<p class="msg ok" style="display:block">✅ Verificación en dos pasos activada.</p>
+      <button class="btn btn-rojo" id="btn-desactivar-mfa">Desactivar</button>`;
+    $("#btn-desactivar-mfa").onclick = async () => {
+      if(!confirm("¿Desactivar la verificación en dos pasos? Volverá a entrar solo con su contraseña.")) return;
+      await db.auth.mfa.unenroll({factorId: factor.id});
+      cargarMfaEstado();
+    };
+  } else {
+    cont.innerHTML = `<button class="btn btn-f" id="btn-activar-mfa">Activar verificación en dos pasos</button><div id="mfa-enroll" style="margin-top:14px"></div>`;
+    $("#btn-activar-mfa").onclick = iniciarEnrolamientoMfa;
+  }
+}
+
+let mfaFactorEnrolando = null;
+
+async function iniciarEnrolamientoMfa(){
+  const {data, error} = await db.auth.mfa.enroll({factorType:"totp"});
+  if(error) return alert("Error: " + error.message);
+  mfaFactorEnrolando = data.id;
+  $("#mfa-enroll").innerHTML = `
+    <p style="font-size:.85rem;color:#5c554a;margin-bottom:8px">Escanee este código QR con Google Authenticator, Authy o similar, y escriba el código de 6 dígitos que le muestre.</p>
+    <div style="max-width:220px;margin:0 auto 10px">${data.totp.qr_code}</div>
+    <p style="font-size:.72rem;color:#7a7263;text-align:center;word-break:break-all">Código manual (si no puede escanear): ${data.totp.secret}</p>
+    <label>Código de verificación</label><input id="mfa-enroll-codigo" inputmode="numeric" maxlength="6" placeholder="123456">
+    <button class="btn btn-v" id="btn-confirmar-mfa">Confirmar y activar</button>
+    <div class="msg" id="mfa-enroll-msg"></div>`;
+  $("#btn-confirmar-mfa").onclick = async () => {
+    const codigo = $("#mfa-enroll-codigo").value.trim();
+    if(!codigo) return msg("#mfa-enroll-msg","Escriba el código.","err");
+    const {data:reto, error:errorReto} = await db.auth.mfa.challenge({factorId: mfaFactorEnrolando});
+    if(errorReto) return msg("#mfa-enroll-msg","Error: "+errorReto.message,"err");
+    const {error:errorVerif} = await db.auth.mfa.verify({factorId: mfaFactorEnrolando, challengeId: reto.id, code: codigo});
+    if(errorVerif) return msg("#mfa-enroll-msg","Código incorrecto, intente de nuevo.","err");
+    cargarMfaEstado();
+  };
+}
 
 $("#a-foto").onchange = e => {
   const f = e.target.files[0];
@@ -1012,7 +1129,9 @@ async function cargarVerificacion(){
       <div class="li-info">
         <b>${p.nombre || "(sin nombre)"}</b>
         Identidad: ${p.identidad||"—"} · Tel: ${p.telefono||"—"}<br>
-        ${p.direccion||"sin dirección"} ${p.estado_civil ? ("· "+p.estado_civil) : ""}
+        ${p.direccion||"sin dirección"} ${p.estado_civil ? ("· "+p.estado_civil) : ""}${p.fecha_nacimiento ? (" · Nació: "+p.fecha_nacimiento) : ""}<br>
+        ${p.ocupacion ? ("Ocupación: "+p.ocupacion+"<br>") : ""}
+        ${p.referencia_nombre ? ("Referencia: "+p.referencia_nombre+(p.referencia_telefono?" · "+p.referencia_telefono:"")) : ""}
       </div>
       <div class="li-acciones">
         <button class="btn btn-chico btn-gris" onclick="verDocumentos('${p.id}')">Ver ID</button>
