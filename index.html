@@ -429,6 +429,26 @@ footer a:hover{color:var(--fierro)}
       </div>
     </div>
 
+    <div class="panel" id="panel-registro-vendedor" style="margin-top:28px">
+      <h3>Regístrese como vendedor consignatario</h3>
+      <p>¿Tiene su propia finca y quiere consignar su ganado en nuestras subastas de forma permanente? Regístrese aquí mismo — el rancho revisa sus datos y le confirma su comisión antes de asignarle animales.</p>
+      <div id="rv-estado"></div>
+      <div class="kyc-box" id="rv-form">
+        <div class="campo"><label>Nombre de contacto *</label><input id="rv-nombre" placeholder="Su nombre completo"></div>
+        <div class="campo"><label>Teléfono / WhatsApp *</label><input id="rv-telefono" placeholder="504..."></div>
+        <div class="campo"><label>Correo</label><input id="rv-correo" type="email" placeholder="correo@ejemplo.com"></div>
+        <div class="campo"><label>Número de identidad</label><input id="rv-identidad" placeholder="0801..."></div>
+        <div class="campo"><label>Procedencia</label><input id="rv-procedencia" placeholder="Catacamas"></div>
+        <div class="campo"><label>Nombre de su finca (uso interno del rancho)</label><input id="rv-finca" placeholder="Finca El Roble"></div>
+        <div class="campo"><label>Ubicación de la finca</label><input id="rv-ubicacion" placeholder="Catacamas, Olancho"></div>
+        <div class="campo"><label>Descripción breve (se muestra al público)</label><textarea id="rv-desc" rows="2"></textarea></div>
+        <div class="campo"><label>Apodo público (así lo verán los compradores — no su nombre real)</label><input id="rv-alias" placeholder="Ej: Daniel A. / El Roble"></div>
+        <p style="font-size:.8rem;color:#7a7263;margin:-2px 0 10px">Su nombre real, identidad, teléfono y correo nunca se muestran en la página — solo los ve el rancho.</p>
+        <button class="btn btn-fierro" id="btn-registro-vendedor" onclick="enviarRegistroVendedor()">Enviar solicitud</button>
+        <div class="puja-msg" id="rv-msg"></div>
+      </div>
+    </div>
+
     <div class="panel" id="panel-mi-publicacion" style="margin-top:28px">
       <h3>Publique usted mismo desde casa</h3>
       <p>¿Ya tiene su cuenta verificada? Publique su propio animal, maquinaria, silobolsa o pacas de heno directo desde aquí. Queda "en revisión" hasta que el rancho lo apruebe, para evitar anuncios falsos.</p>
@@ -738,6 +758,39 @@ window.responderContraoferta = async (id, aceptar) => {
   const {error} = await db.rpc("responder_contraoferta", {p_oferta_id: id, p_aceptar: aceptar});
   if(error) return alert("Error: " + error.message);
   await cargarMisOfertas();
+};
+
+/* ===== REGISTRO DE VENDEDORES CONSIGNATARIOS ===== */
+
+window.enviarRegistroVendedor = async () => {
+  const msgEl = document.getElementById("rv-msg");
+  const nombre = document.getElementById("rv-nombre").value.trim();
+  const telefono = document.getElementById("rv-telefono").value.trim();
+  if(!nombre || !telefono){
+    msgEl.textContent = "Nombre y teléfono son obligatorios.";
+    msgEl.className = "puja-msg err";
+    return;
+  }
+  const btn = document.getElementById("btn-registro-vendedor");
+  btn.disabled = true; btn.textContent = "Enviando…";
+  const {error} = await db.rpc("registrar_vendedor", {
+    p_nombre: nombre, p_telefono: telefono,
+    p_correo: document.getElementById("rv-correo").value.trim() || null,
+    p_identidad: document.getElementById("rv-identidad").value.trim() || null,
+    p_procedencia: document.getElementById("rv-procedencia").value.trim() || null,
+    p_nombre_finca: document.getElementById("rv-finca").value.trim() || null,
+    p_ubicacion_finca: document.getElementById("rv-ubicacion").value.trim() || null,
+    p_descripcion: document.getElementById("rv-desc").value.trim() || null,
+    p_alias_publico: document.getElementById("rv-alias").value.trim() || null
+  });
+  if(error){
+    msgEl.textContent = "Error: " + error.message;
+    msgEl.className = "puja-msg err";
+    btn.disabled = false; btn.textContent = "Enviar solicitud";
+    return;
+  }
+  document.getElementById("rv-form").style.display = "none";
+  document.getElementById("rv-estado").innerHTML = `<p class="puja-msg ok">¡Solicitud enviada! El rancho revisará sus datos y le confirmará su comisión antes de asignarle animales. Le contactaremos al teléfono que dejó.</p>`;
 };
 
 /* ===== PUBLICAR MI PROPIO ARTÍCULO ("Vende con nosotros") ===== */

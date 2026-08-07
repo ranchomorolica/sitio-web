@@ -168,6 +168,42 @@ from public.vendedores
 where coalesce(estado, 'aprobado') = 'aprobado';
 grant select on public.vendedores_publico to anon, authenticated;
 
+-- Un ranchero externo se registra solo como vendedor consignatario
+-- desde la página ("Vende con nosotros"), sin necesitar que usted
+-- lo teclee a mano en admin.html. Queda "pendiente" — no aparece
+-- en el directorio público ni se le puede asignar ningún animal
+-- hasta que usted lo revise y lo apruebe. La comisión pactada la
+-- decide siempre el rancho (queda en 4% por defecto, ajustable al
+-- aprobar), nunca el propio vendedor.
+create or replace function public.registrar_vendedor(
+  p_nombre text, p_telefono text, p_correo text default null, p_identidad text default null,
+  p_procedencia text default null, p_nombre_finca text default null, p_ubicacion_finca text default null,
+  p_descripcion text default null, p_alias_publico text default null
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if coalesce(trim(p_nombre), '') = '' or coalesce(trim(p_telefono), '') = '' then
+    raise exception 'Nombre y teléfono son obligatorios.';
+  end if;
+  insert into public.vendedores (
+    nombre_vendedor, telefono, correo, identidad, procedencia,
+    nombre_finca, ubicacion_finca, descripcion, alias_publico,
+    comision_pactada, estado
+  ) values (
+    trim(p_nombre), trim(p_telefono), nullif(trim(p_correo), ''), nullif(trim(p_identidad), ''),
+    nullif(trim(p_procedencia), ''), coalesce(nullif(trim(p_nombre_finca), ''), trim(p_nombre)),
+    nullif(trim(p_ubicacion_finca), ''), nullif(trim(p_descripcion), ''),
+    coalesce(nullif(trim(p_alias_publico), ''), split_part(trim(p_nombre), ' ', 1)),
+    4, 'pendiente'
+  );
+end;
+$$;
+
+grant execute on function public.registrar_vendedor(text,text,text,text,text,text,text,text,text) to anon, authenticated;
+
 -- Reseñas y ranking de esos vendedores, dejadas por compradores
 -- ya verificados. vendedor_id es integer porque así es la llave
 -- real de la tabla vendedores (id_vendedor serial), no uuid.

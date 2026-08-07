@@ -250,8 +250,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
 
   <!-- VENDEDORES EXTERNOS -->
   <div class="tarjeta oculto-sec" id="sec-vendedores">
-    <h2>Vendedores externos</h2>
-    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Rancheros ajenos a Rancho Morolica que consignan su ganado para venderlo aquí, con su comisión.</p>
+    <h2>Vendedores externos (<span id="total-pendientes-vend">0</span> pendientes)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Rancheros ajenos a Rancho Morolica que consignan su ganado para venderlo aquí, con su comisión. Los que se registran solos desde la página quedan "pendientes" aquí hasta que usted revise sus datos y fije la comisión.</p>
     <input type="hidden" id="v-id">
     <label>Nombre del vendedor *</label><input id="v-nombre-contacto" placeholder="Juan Pérez">
     <div class="fila">
@@ -883,7 +883,10 @@ async function cargarVendedores(){
     if(!ranking[r.vendedor_id]) ranking[r.vendedor_id] = {suma:0, n:0};
     ranking[r.vendedor_id].suma += r.calificacion; ranking[r.vendedor_id].n++;
   });
-  $("#lista-vendedores").innerHTML = window._vendedores.map(v => {
+  const pendientes = window._vendedores.filter(v => v.estado === "pendiente").length;
+  $("#total-pendientes-vend").textContent = pendientes;
+  const ordenados = [...window._vendedores].sort((a,b) => (a.estado==='pendiente'?0:1) - (b.estado==='pendiente'?0:1));
+  $("#lista-vendedores").innerHTML = ordenados.map(v => {
     const rk = ranking[v.id_vendedor];
     const prom = rk ? (rk.suma/rk.n).toFixed(1) : null;
     const estado = v.estado || "aprobado";
@@ -892,6 +895,7 @@ async function cargarVendedores(){
       <div class="li-info">
         <b>${v.nombre_vendedor}</b> <span style="color:#7a7263">(público: "${v.alias_publico||"—"}")</span>
         ${v.telefono||"sin teléfono"} · Comisión ${v.comision_pactada}%<br>
+        ${v.procedencia ? `Procedencia: ${v.procedencia}<br>` : ""}
         ${prom ? `★ ${prom} (${rk.n} reseña${rk.n===1?"":"s"})` : "Sin reseñas aún"}
         <span class="pill ${estado==='aprobado'?'pub':estado==='rechazado'?'vend':'oculto'}">${estado}</span>
         <div class="contactos">
@@ -900,12 +904,29 @@ async function cargarVendedores(){
         </div>
       </div>
       <div class="li-acciones">
+        ${estado==='pendiente' ? `
+          <button class="btn btn-chico btn-v" onclick="aprobarVendedorRapido('${v.id_vendedor}')">Aprobar</button>
+          <button class="btn btn-chico btn-rojo" onclick="responderVendedorPendiente('${v.id_vendedor}',false)">Rechazar</button>
+        ` : ""}
         <button class="btn btn-chico btn-gris" onclick="editarVendedor('${v.id_vendedor}')">Editar</button>
         <button class="btn btn-chico btn-rojo" onclick="borrarVendedor('${v.id_vendedor}')">Borrar</button>
       </div>
     </div>`;
   }).join("") || "<p style='color:#7a7263'>Aún no hay vendedores.</p>";
 }
+
+window.aprobarVendedorRapido = async (id) => {
+  const comision = prompt("¿Qué comisión le fija a este vendedor? (%)", "4");
+  if(comision === null) return;
+  const {error} = await db.from("vendedores").update({estado:"aprobado", comision_pactada: Number(comision) || 0}).eq("id_vendedor", id);
+  if(error) return alert("Error: " + error.message);
+  cargarVendedores();
+};
+
+window.responderVendedorPendiente = async (id, aprobado) => {
+  await db.from("vendedores").update({estado: aprobado ? "aprobado" : "rechazado"}).eq("id_vendedor", id);
+  cargarVendedores();
+};
 
 window.editarVendedor = id => {
   const v = window._vendedores.find(x=>String(x.id_vendedor)===String(id));

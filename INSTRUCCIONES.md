@@ -98,12 +98,13 @@ Después de ser aprobado, la página le muestra al comprador el monto del depós
 
 ## Vendedores externos (consignatarios) y sus reseñas
 
-Para ranchos ajenos que consignan ganado con usted:
+Para ranchos ajenos que consignan ganado con usted, hay dos formas de darlos de alta:
 
-1. En `/admin.html` → **"Vendedores externos"**, dé de alta la finca (nombre de contacto, teléfono, nombre y ubicación de la finca, y su % de comisión).
-2. Al registrar un animal (o un lote de subasta), selecciónelo en el campo **"Vendedor"** — si lo deja en "Rancho Morolica (propio)", es un animal suyo, sin comisión.
-3. Los compradores ya aprobados pueden dejar una reseña de 1 a 5 estrellas de cada vendedor desde la sección "Vendedores" de la página pública; el promedio y la cantidad de reseñas se muestran ahí y también junto al animal en el catálogo.
-4. Cada venta genera su factura automáticamente con el desglose de la comisión de ese vendedor.
+1. **Usted los registra a mano**: en `/admin.html` → **"Vendedores externos"**, dé de alta la finca (nombre de contacto, teléfono, nombre y ubicación de la finca, y su % de comisión). Queda "aprobado" de una vez.
+2. **Ellos se registran solos**: en la página pública, sección **"Vende con nosotros" → "Regístrese como vendedor consignatario"**, cualquier ranchero llena sus propios datos (nombre, teléfono, finca, ubicación, apodo público que quiere usar) y lo envía — sin necesitar cuenta ni contraseña. Le llega a usted en `/admin.html` → **"Vendedores externos"** como **"pendiente"** (aparecen primero en la lista, con un contador arriba). Presione **"Aprobar"** — le va a preguntar qué comisión le fija — o **"Rechazar"**. Mientras está pendiente, no aparece en el directorio público y no se le puede asignar ningún animal.
+3. Al registrar un animal (o un lote de subasta), seleccione el vendedor ya aprobado en el campo **"Vendedor"** — si lo deja en "Rancho Morolica (propio)", es un animal suyo, sin comisión.
+4. Los compradores ya aprobados pueden dejar una reseña de 1 a 5 estrellas de cada vendedor desde la sección "Vendedores" de la página pública; el promedio y la cantidad de reseñas se muestran ahí y también junto al animal en el catálogo.
+5. Cada venta genera su factura automáticamente con el desglose de la comisión de ese vendedor.
 
 ## Se unificó con su programa de subasta (Panel de Control / Proyector)
 
