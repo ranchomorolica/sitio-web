@@ -44,6 +44,7 @@ create table if not exists public.config_sitio (
   updated_at timestamptz default now()
 );
 insert into public.config_sitio (id) values (true) on conflict (id) do nothing;
+alter table public.config_sitio add column if not exists comision_marketplace_pct numeric not null default 5;
 
 -- 4) Perfiles: un registro por cada usuario de Supabase Auth.
 --    Distingue al administrador (usted) de los compradores que
@@ -426,6 +427,142 @@ begin
   end if;
 end $$;
 
+-- 9d) Publicaciones de usuarios: cualquier comprador ya verificado
+--     (KYC aprobado) puede publicar su propio animal o artículo
+--     desde la página, sin pasar por admin.html. Queda "pendiente"
+--     hasta que usted lo apruebe — así evitamos anuncios falsos.
+--     Lo que YA existía (creado_por vacío) se considera suyo,
+--     siempre aprobado, para no afectar su catálogo actual.
+alter table public.ganado_web add column if not exists creado_por uuid references auth.users(id);
+alter table public.ganado_web add column if not exists estado_publicacion text not null default 'aprobado';
+alter table public.ganado_web add column if not exists motivo_rechazo_publicacion text;
+alter table public.articulos_web add column if not exists creado_por uuid references auth.users(id);
+alter table public.articulos_web add column if not exists estado_publicacion text not null default 'aprobado';
+alter table public.articulos_web add column if not exists motivo_rechazo_publicacion text;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ganado_web_estado_publicacion_check') then
+    alter table public.ganado_web add constraint ganado_web_estado_publicacion_check check (estado_publicacion in ('pendiente','aprobado','rechazado'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'articulos_web_estado_publicacion_check') then
+    alter table public.articulos_web add constraint articulos_web_estado_publicacion_check check (estado_publicacion in ('pendiente','aprobado','rechazado'));
+  end if;
+end $$;
+
+-- Impide que un usuario normal se autoapruebe la publicación, se
+-- adjudique un vendedor de consignación, o edite algo de otro. El
+-- propio dueño sí puede editar su descripción/precio/fotos y
+-- marcarla vendida; solo el admin cambia estado_publicacion,
+-- motivo_rechazo_publicacion o vendedor_id.
+create or replace function public.proteger_columnas_listado()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not public.es_admin() then
+    new.estado_publicacion := old.estado_publicacion;
+    new.motivo_rechazo_publicacion := old.motivo_rechazo_publicacion;
+    new.vendedor_id := old.vendedor_id;
+    new.creado_por := old.creado_por;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists antes_actualizar_ganado on public.ganado_web;
+create trigger antes_actualizar_ganado
+  before update on public.ganado_web
+  for each row execute function public.proteger_columnas_listado();
+
+drop trigger if exists antes_actualizar_articulo on public.articulos_web;
+create trigger antes_actualizar_articulo
+  before update on public.articulos_web
+  for each row execute function public.proteger_columnas_listado();
+
+-- Función para que el admin apruebe/rechace una publicación.
+create or replace function public.revisar_publicacion(p_origen text, p_item_id uuid, p_aprobado boolean, p_motivo text default null)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not public.es_admin() then
+    raise exception 'Solo el administrador puede revisar publicaciones.';
+  end if;
+  if p_origen = 'ganado' then
+    update public.ganado_web
+      set estado_publicacion = case when p_aprobado then 'aprobado' else 'rechazado' end,
+          motivo_rechazo_publicacion = p_motivo
+      where id = p_item_id;
+  elsif p_origen = 'articulo' then
+    update public.articulos_web
+      set estado_publicacion = case when p_aprobado then 'aprobado' else 'rechazado' end,
+          motivo_rechazo_publicacion = p_motivo
+      where id = p_item_id;
+  else
+    raise exception 'Origen inválido.';
+  end if;
+end;
+$$;
+
+grant execute on function public.revisar_publicacion(text, uuid, boolean, text) to authenticated;
+
+-- El propio vendedor marca su publicación como vendida: guarda
+-- vendido=true y genera la factura con la comisión de mercado
+-- (config_sitio.comision_marketplace_pct) ya calculada, para que
+-- quede registrado cuánto le debe al rancho por esa venta. El
+-- cobro real de esa comisión (con PixelPay u otro) es un paso
+-- aparte que todavía no está conectado.
+create or replace function public.marcar_vendido_propio(p_origen text, p_item_id uuid, p_comprador_nombre text, p_comprador_telefono text default null)
+returns public.facturas
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_precio numeric;
+  v_pct numeric;
+  v_com numeric;
+  v_factura public.facturas;
+begin
+  select comision_marketplace_pct into v_pct from public.config_sitio where id = true;
+  v_pct := coalesce(v_pct, 0);
+
+  if p_origen = 'ganado' then
+    select precio_lps into v_precio from public.ganado_web where id = p_item_id and creado_por = auth.uid();
+    if not found then
+      raise exception 'Publicación no encontrada o no le pertenece.';
+    end if;
+    update public.ganado_web set vendido = true where id = p_item_id;
+  elsif p_origen = 'articulo' then
+    select precio_lps into v_precio from public.articulos_web where id = p_item_id and creado_por = auth.uid();
+    if not found then
+      raise exception 'Publicación no encontrada o no le pertenece.';
+    end if;
+    update public.articulos_web set vendido = true where id = p_item_id;
+  else
+    raise exception 'Origen inválido.';
+  end if;
+
+  v_precio := coalesce(v_precio, 0);
+  v_com := round(v_precio * v_pct) / 100;
+
+  insert into public.facturas (origen, ganado_id, articulo_id, comprador_id, comprador_nombre, comprador_telefono, monto_lps, comision_pct, comision_lps)
+  values (
+    'catalogo',
+    case when p_origen = 'ganado' then p_item_id else null end,
+    case when p_origen = 'articulo' then p_item_id else null end,
+    null, coalesce(nullif(trim(p_comprador_nombre), ''), 'Comprador'), p_comprador_telefono,
+    v_precio, v_pct, v_com
+  )
+  returning * into v_factura;
+
+  return v_factura;
+end;
+$$;
+
+grant execute on function public.marcar_vendido_propio(text, uuid, text, text) to authenticated;
+
 -- Ofertas de compradores registrados (no requiere el KYC completo
 -- de la subasta en vivo — solo tener una cuenta — porque aquí no
 -- hay dinero de garantía de por medio, es solo una propuesta).
@@ -557,7 +694,33 @@ alter table public.subastas_archivadas enable row level security;
 drop policy if exists "publico lee ganado publicado" on public.ganado_web;
 create policy "publico lee ganado publicado"
   on public.ganado_web for select
-  using (publicado = true);
+  using (publicado = true and coalesce(estado_publicacion, 'aprobado') = 'aprobado');
+
+-- Un comprador ya verificado puede publicar su propio animal, ver
+-- sus propias publicaciones (aunque estén pendientes de revisión o
+-- rechazadas), editarlas o borrarlas.
+drop policy if exists "usuario ve sus publicaciones ganado" on public.ganado_web;
+create policy "usuario ve sus publicaciones ganado"
+  on public.ganado_web for select
+  to authenticated using (creado_por = auth.uid());
+
+drop policy if exists "usuario aprobado publica ganado" on public.ganado_web;
+create policy "usuario aprobado publica ganado"
+  on public.ganado_web for insert
+  to authenticated with check (
+    creado_por = auth.uid()
+    and exists (select 1 from public.perfiles where id = auth.uid() and estado_verificacion = 'aprobado' and not bloqueado)
+  );
+
+drop policy if exists "usuario edita su publicacion ganado" on public.ganado_web;
+create policy "usuario edita su publicacion ganado"
+  on public.ganado_web for update
+  to authenticated using (creado_por = auth.uid()) with check (creado_por = auth.uid());
+
+drop policy if exists "usuario borra su publicacion ganado" on public.ganado_web;
+create policy "usuario borra su publicacion ganado"
+  on public.ganado_web for delete
+  to authenticated using (creado_por = auth.uid());
 
 drop policy if exists "admin lee todo el ganado" on public.ganado_web;
 create policy "admin lee todo el ganado"
@@ -766,7 +929,30 @@ create policy "admin gestiona facturas"
 drop policy if exists "publico lee articulos publicados" on public.articulos_web;
 create policy "publico lee articulos publicados"
   on public.articulos_web for select
-  using (publicado = true);
+  using (publicado = true and coalesce(estado_publicacion, 'aprobado') = 'aprobado');
+
+drop policy if exists "usuario ve sus publicaciones articulos" on public.articulos_web;
+create policy "usuario ve sus publicaciones articulos"
+  on public.articulos_web for select
+  to authenticated using (creado_por = auth.uid());
+
+drop policy if exists "usuario aprobado publica articulo" on public.articulos_web;
+create policy "usuario aprobado publica articulo"
+  on public.articulos_web for insert
+  to authenticated with check (
+    creado_por = auth.uid()
+    and exists (select 1 from public.perfiles where id = auth.uid() and estado_verificacion = 'aprobado' and not bloqueado)
+  );
+
+drop policy if exists "usuario edita su publicacion articulo" on public.articulos_web;
+create policy "usuario edita su publicacion articulo"
+  on public.articulos_web for update
+  to authenticated using (creado_por = auth.uid()) with check (creado_por = auth.uid());
+
+drop policy if exists "usuario borra su publicacion articulo" on public.articulos_web;
+create policy "usuario borra su publicacion articulo"
+  on public.articulos_web for delete
+  to authenticated using (creado_por = auth.uid());
 
 drop policy if exists "admin lee todos los articulos" on public.articulos_web;
 create policy "admin lee todos los articulos"
@@ -849,6 +1035,13 @@ drop policy if exists "admin sube fotos ganado" on storage.objects;
 create policy "admin sube fotos ganado"
   on storage.objects for insert
   to authenticated with check (bucket_id = 'ganado-fotos' and public.es_admin());
+
+-- Un comprador verificado también puede subir fotos de SU PROPIA
+-- publicación, siempre dentro de su propia carpeta <su-user-id>/…
+drop policy if exists "usuario sube foto de su publicacion" on storage.objects;
+create policy "usuario sube foto de su publicacion"
+  on storage.objects for insert
+  to authenticated with check (bucket_id = 'ganado-fotos' and (storage.foldername(name))[1] = auth.uid()::text);
 
 drop policy if exists "admin actualiza fotos ganado" on storage.objects;
 create policy "admin actualiza fotos ganado"

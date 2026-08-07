@@ -73,6 +73,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <input id="c-deposito" type="number" inputmode="numeric">
     <label>Datos bancarios para el depósito (se muestran al comprador)</label>
     <textarea id="c-datos-bancarios" rows="3" placeholder="Banco, número de cuenta, nombre del titular…"></textarea>
+    <label>Comisión de mercado — publicaciones de usuarios (%)</label>
+    <input id="c-comision-mercado" type="number" step="0.1" placeholder="5">
+    <p style="font-size:.8rem;color:#7a7263;margin-top:4px">Se calcula sola cuando un usuario marca su propia publicación como vendida (distinta a la comisión de los vendedores consignatarios).</p>
     <button class="btn btn-v" id="btn-config">Guardar configuración</button>
     <div class="msg" id="c-msg"></div>
     <p style="font-size:.85rem;color:#7a7263;margin-top:10px"><a href="ruedo.html" target="_blank" style="color:var(--cuero)">Abrir panel del rematador (pujas físicas del ruedo) →</a></p>
@@ -217,6 +220,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <div id="lista-articulos" style="margin-top:18px"></div>
   </div>
 
+  <!-- PUBLICACIONES DE USUARIOS PENDIENTES -->
+  <div class="tarjeta oculto-sec" id="sec-moderacion">
+    <h2>Publicaciones de usuarios (<span id="total-moderacion">0</span> pendientes)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Cuando un comprador ya verificado (KYC aprobado) publica su propio animal o artículo desde la página, aparece aquí antes de mostrarse al público. Apruébelo o recházelo; mientras tanto no lo ve nadie más.</p>
+    <div id="lista-moderacion"></div>
+  </div>
+
   <!-- OFERTAS RECIBIDAS -->
   <div class="tarjeta oculto-sec" id="sec-ofertas">
     <h2>Ofertas recibidas (<span id="total-ofertas">0</span> pendientes)</h2>
@@ -305,7 +315,7 @@ const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
 
-const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
+const SECCIONES_ADMIN = ["#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-moderacion","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
 
 async function sesion(){
   const {data:{session}} = await db.auth.getSession();
@@ -327,6 +337,7 @@ async function sesion(){
     await cargarVendedores();
     await listar();
     await cargarArticulos();
+    await cargarModeracion();
     await cargarOfertas();
     await cargarSubasta();
     await cargarCompradores();
@@ -640,6 +651,50 @@ window.responderOferta = async (id, accion) => {
   await cargarOfertas(); await listar(); await cargarArticulos();
 };
 
+/* ===== PUBLICACIONES DE USUARIOS (MODERACIÓN) ===== */
+
+async function cargarModeracion(){
+  const {data:g} = await db.from("ganado_web").select("*").eq("estado_publicacion","pendiente");
+  const {data:a} = await db.from("articulos_web").select("*").eq("estado_publicacion","pendiente");
+  const pendientes = [
+    ...(g||[]).map(x=>({...x, _origen:"ganado", _titulo:`Lote ${x.lote} · ${x.categoria}`})),
+    ...(a||[]).map(x=>({...x, _origen:"articulo", _titulo:`${x.categoria} · ${x.nombre}`}))
+  ];
+  window._moderacion = pendientes;
+  $("#total-moderacion").textContent = pendientes.length;
+  if(!pendientes.length){
+    $("#lista-moderacion").innerHTML = "<p style='color:#7a7263'>No hay publicaciones pendientes de revisión.</p>";
+    return;
+  }
+  const idsUsuario = [...new Set(pendientes.map(p=>p.creado_por).filter(Boolean))];
+  const {data:perfilesData} = idsUsuario.length ? await db.from("perfiles").select("id,nombre,telefono").in("id", idsUsuario) : {data:[]};
+  const nombres = {};
+  (perfilesData||[]).forEach(p=>nombres[p.id]=p);
+  $("#lista-moderacion").innerHTML = pendientes.map(p => {
+    const autor = nombres[p.creado_por] || {};
+    return `<div class="lista-item">
+      ${p.foto_url ? `<img src="${p.foto_url}" alt="">` : `<div class="mini">?</div>`}
+      <div class="li-info">
+        <b>${p._titulo}</b>
+        ${p.precio_lps ? "L "+Number(p.precio_lps).toLocaleString("es-HN") : "Consultar"}<br>
+        Publicado por: ${autor.nombre || "(usuario)"} · ${autor.telefono || "sin teléfono"}
+      </div>
+      <div class="li-acciones">
+        <button class="btn btn-chico btn-v" onclick="revisarPublicacion('${p._origen}','${p.id}',true)">Aprobar</button>
+        <button class="btn btn-chico btn-rojo" onclick="revisarPublicacion('${p._origen}','${p.id}',false)">Rechazar</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.revisarPublicacion = async (origen, id, aprobado) => {
+  let motivo = null;
+  if(!aprobado) motivo = prompt("Motivo del rechazo (se muestra al usuario):", "") || null;
+  const {error} = await db.rpc("revisar_publicacion", {p_origen: origen, p_item_id: id, p_aprobado: aprobado, p_motivo: motivo});
+  if(error) return alert("Error: "+error.message);
+  await cargarModeracion(); await listar(); await cargarArticulos();
+};
+
 let subastaIdActual = null;
 
 async function cargarSubasta(){
@@ -792,6 +847,7 @@ async function cargarConfig(){
     $("#c-tipo-cambio").value = data.tipo_cambio_lps_por_usd;
     $("#c-deposito").value = data.deposito_garantia_lps;
     $("#c-datos-bancarios").value = data.datos_bancarios;
+    $("#c-comision-mercado").value = data.comision_marketplace_pct ?? 5;
   }
 }
 
@@ -800,6 +856,7 @@ $("#btn-config").onclick = async () => {
     tipo_cambio_lps_por_usd: Number($("#c-tipo-cambio").value) || 26.5,
     deposito_garantia_lps: Number($("#c-deposito").value) || 10000,
     datos_bancarios: $("#c-datos-bancarios").value.trim(),
+    comision_marketplace_pct: Number($("#c-comision-mercado").value) || 0,
     updated_at: new Date().toISOString()
   };
   const {error} = await db.from("config_sitio").update(reg).eq("id", true);

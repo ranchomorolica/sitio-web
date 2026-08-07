@@ -428,6 +428,54 @@ footer a:hover{color:var(--fierro)}
         <a class="btn btn-ws" id="ws-cita" href="#" target="_blank" rel="noopener">Agendar cita por WhatsApp</a>
       </div>
     </div>
+
+    <div class="panel" id="panel-mi-publicacion" style="margin-top:28px">
+      <h3>Publique usted mismo desde casa</h3>
+      <p>¿Ya tiene su cuenta verificada? Publique su propio animal, maquinaria, silobolsa o pacas de heno directo desde aquí. Queda "en revisión" hasta que el rancho lo apruebe, para evitar anuncios falsos.</p>
+      <div id="mi-pub-estado"></div>
+      <div id="mi-pub-form" style="display:none">
+        <div class="kyc-box">
+          <div class="campo"><label>¿Qué va a publicar? *</label>
+            <select id="mp-tipo" onchange="cambiarTipoPublicacion()">
+              <option value="ganado">Un animal</option>
+              <option value="articulo">Maquinaria, silobolsa o pacas de heno</option>
+            </select>
+          </div>
+
+          <div id="mp-campos-ganado">
+            <div class="campo"><label>Lote (identificador) *</label><input id="mp-lote" placeholder="A-01"></div>
+            <div class="campo"><label>Categoría *</label>
+              <select id="mp-categoria-ganado">
+                <option>Toro</option><option>Vaca parida</option><option>Vaca preñada</option>
+                <option>Vaquilla</option><option>Novillo</option><option>Ternero</option><option>Ternera</option>
+              </select>
+            </div>
+            <div class="campo"><label>Peso (kg) *</label><input id="mp-peso" type="number" inputmode="numeric"></div>
+            <div class="campo"><label>Edad (meses)</label><input id="mp-edad" type="number" inputmode="numeric"></div>
+            <div class="campo"><label>Estado / observaciones</label><input id="mp-estado-animal" placeholder="Preñada 7 meses…"></div>
+          </div>
+
+          <div id="mp-campos-articulo" style="display:none">
+            <div class="campo"><label>Categoría *</label>
+              <select id="mp-categoria-articulo"><option>Maquinaria</option><option>Silobolsa</option><option>Pacas de heno</option></select>
+            </div>
+            <div class="campo"><label>Nombre *</label><input id="mp-nombre-articulo" placeholder="Tractor Massey Ferguson 265"></div>
+            <div class="campo"><label>Marca / Modelo</label><input id="mp-marca-modelo" placeholder="Massey Ferguson 265"></div>
+            <div class="campo"><label>Cantidad / unidad</label><input id="mp-cantidad-unidad" placeholder="Ej: 50 pacas"></div>
+          </div>
+
+          <div class="campo"><label>Descripción</label><textarea id="mp-desc" rows="2"></textarea></div>
+          <div class="campo"><label>Precio (Lempiras) — vacío = "Consultar"</label><input id="mp-precio" type="number" inputmode="numeric"></div>
+          <div class="campo"><label>¿Cómo quiere vender?</label>
+            <select id="mp-modo"><option value="directo">Precio directo</option><option value="oferta">Aceptar ofertas</option></select>
+          </div>
+          <div class="campo"><label>Foto *</label><input id="mp-foto" type="file" accept="image/*"></div>
+          <button class="btn btn-fierro" id="btn-mi-pub" onclick="enviarMiPublicacion()">Publicar</button>
+          <div class="puja-msg" id="mp-msg"></div>
+        </div>
+      </div>
+      <div id="mis-publicaciones" style="margin-top:22px"></div>
+    </div>
   </div>
 </section>
 
@@ -575,7 +623,7 @@ function pintar(){
 /* ===== MAQUINARIA Y SUMINISTROS ===== */
 
 async function cargarArticulos(){
-  const {data} = await db.from("articulos_web").select("*").eq("publicado", true).order("created_at",{ascending:false});
+  const {data} = await db.from("articulos_web").select("*").eq("publicado", true).eq("estado_publicacion","aprobado").order("created_at",{ascending:false});
   articulos = data || [];
   pintarFiltrosArt();
   pintarArticulos();
@@ -692,6 +740,135 @@ window.responderContraoferta = async (id, aceptar) => {
   await cargarMisOfertas();
 };
 
+/* ===== PUBLICAR MI PROPIO ARTÍCULO ("Vende con nosotros") ===== */
+
+window.cambiarTipoPublicacion = () => {
+  const esGanado = document.getElementById("mp-tipo").value === "ganado";
+  document.getElementById("mp-campos-ganado").style.display = esGanado ? "block" : "none";
+  document.getElementById("mp-campos-articulo").style.display = esGanado ? "none" : "block";
+};
+
+function renderMiPublicacionEstado(){
+  const cont = document.getElementById("mi-pub-estado");
+  const form = document.getElementById("mi-pub-form");
+  if(!cont) return;
+  if(!sesionUsuario){
+    cont.innerHTML = `<p style="color:#5c554a;font-size:.92rem">Inicie sesión o cree su cuenta en la sección <a href="#subastas">Subastas en línea</a> para poder publicar sus propios artículos.</p>`;
+    form.style.display = "none";
+    document.getElementById("mis-publicaciones").innerHTML = "";
+    return;
+  }
+  if(sesionUsuario.bloqueado){
+    cont.innerHTML = `<p class="puja-msg err">Su cuenta no puede publicar en este momento. Escríbanos por WhatsApp.</p>`;
+    form.style.display = "none";
+    return;
+  }
+  if(sesionUsuario.estadoVerificacion !== "aprobado"){
+    cont.innerHTML = `<p style="color:#5c554a;font-size:.92rem">Para publicar sus propios artículos primero necesitamos verificar su identidad. Complete ese paso (gratis, una sola vez) en <a href="#subastas">Subastas en línea</a>.</p>`;
+    form.style.display = "none";
+    cargarMisPublicaciones();
+    return;
+  }
+  cont.innerHTML = "";
+  form.style.display = "block";
+  cargarMisPublicaciones();
+}
+
+async function subirFotoPropia(archivo){
+  const ext = archivo.name.split(".").pop() || "jpg";
+  const ruta = `${sesionUsuario.id}/${Date.now()}.${ext}`;
+  const {error} = await db.storage.from("ganado-fotos").upload(ruta, archivo, {upsert:true});
+  if(error) throw error;
+  return db.storage.from("ganado-fotos").getPublicUrl(ruta).data.publicUrl;
+}
+
+window.enviarMiPublicacion = async () => {
+  const msgEl = document.getElementById("mp-msg");
+  const tipo = document.getElementById("mp-tipo").value;
+  const precio = Number(document.getElementById("mp-precio").value) || null;
+  const foto = document.getElementById("mp-foto").files[0];
+  const descripcion = document.getElementById("mp-desc").value.trim();
+  const modo = document.getElementById("mp-modo").value;
+  if(!foto){ msgEl.textContent = "Suba al menos una foto."; msgEl.className = "puja-msg err"; return; }
+  const btn = document.getElementById("btn-mi-pub");
+  btn.disabled = true; btn.textContent = "Publicando…";
+  try{
+    const foto_url = await subirFotoPropia(foto);
+    if(tipo === "ganado"){
+      const lote = document.getElementById("mp-lote").value.trim();
+      const peso = Number(document.getElementById("mp-peso").value);
+      if(!lote || !peso) throw new Error("Lote y peso son obligatorios.");
+      const {error} = await db.from("ganado_web").insert({
+        lote, categoria: document.getElementById("mp-categoria-ganado").value,
+        peso_kg: peso, edad_meses: Number(document.getElementById("mp-edad").value) || null,
+        estado: document.getElementById("mp-estado-animal").value.trim(),
+        precio_lps: precio, modo_venta: modo, foto_url,
+        publicado: true, creado_por: sesionUsuario.id, estado_publicacion: "pendiente"
+      });
+      if(error) throw error;
+    } else {
+      const nombre = document.getElementById("mp-nombre-articulo").value.trim();
+      if(!nombre) throw new Error("El nombre es obligatorio.");
+      const {error} = await db.from("articulos_web").insert({
+        categoria: document.getElementById("mp-categoria-articulo").value, nombre,
+        descripcion, precio_lps: precio, modo_venta: modo, foto_url,
+        marca: document.getElementById("mp-marca-modelo").value.trim(),
+        unidad: document.getElementById("mp-cantidad-unidad").value.trim(),
+        publicado: true, creado_por: sesionUsuario.id, estado_publicacion: "pendiente"
+      });
+      if(error) throw error;
+    }
+    msgEl.textContent = "¡Publicado! Quedó en revisión — le avisaremos cuando el rancho lo apruebe.";
+    msgEl.className = "puja-msg ok";
+    ["mp-lote","mp-peso","mp-edad","mp-estado-animal","mp-nombre-articulo","mp-marca-modelo","mp-cantidad-unidad","mp-desc","mp-precio"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+    document.getElementById("mp-foto").value = "";
+    await cargarMisPublicaciones();
+  }catch(e){
+    msgEl.textContent = "Error: " + e.message;
+    msgEl.className = "puja-msg err";
+  }
+  btn.disabled = false; btn.textContent = "Publicar";
+};
+
+async function cargarMisPublicaciones(){
+  const cont = document.getElementById("mis-publicaciones");
+  if(!cont || !sesionUsuario) return;
+  const {data:g} = await db.from("ganado_web").select("*").eq("creado_por", sesionUsuario.id).order("created_at",{ascending:false});
+  const {data:a} = await db.from("articulos_web").select("*").eq("creado_por", sesionUsuario.id).order("created_at",{ascending:false});
+  const propias = [
+    ...(g||[]).map(x=>({...x, _origen:"ganado", _titulo:`Lote ${x.lote} · ${x.categoria}`})),
+    ...(a||[]).map(x=>({...x, _origen:"articulo", _titulo:`${x.categoria} · ${x.nombre}`}))
+  ];
+  if(!propias.length){ cont.innerHTML = ""; return; }
+  const estadoTxt = {pendiente:"En revisión", aprobado:"Publicado", rechazado:"Rechazado"};
+  cont.innerHTML = `<div class="mis-ofertas"><h4>Mis publicaciones</h4>` +
+    propias.map(p => `
+      <div class="fila-oferta">
+        <span>${p._titulo} — ${p.precio_lps ? fmtL(p.precio_lps) : "Consultar"} · <b>${estadoTxt[p.estado_publicacion]||p.estado_publicacion}</b>${p.vendido?" · Vendido":""}${(p.estado_publicacion==='rechazado' && p.motivo_rechazo_publicacion) ? ` (${p.motivo_rechazo_publicacion})` : ""}</span>
+        ${!p.vendido ? `<span>
+          <button style="background:var(--monte);color:#fff" onclick="marcarMiVenta('${p._origen}','${p.id}')">Marcar vendido</button>
+          <button style="background:var(--rojo);color:#fff" onclick="borrarMiPublicacion('${p._origen}','${p.id}')">Borrar</button>
+        </span>` : ""}
+      </div>`).join("") + `</div>`;
+}
+
+window.marcarMiVenta = async (origen, id) => {
+  const nombre = prompt("Nombre del comprador:", "");
+  if(!nombre) return;
+  const telefono = prompt("Teléfono del comprador (opcional):", "") || null;
+  const {error} = await db.rpc("marcar_vendido_propio", {p_origen: origen, p_item_id: id, p_comprador_nombre: nombre, p_comprador_telefono: telefono});
+  if(error) return alert("Error: " + error.message);
+  alert("¡Venta registrada! Se generó la factura con la comisión del mercado.");
+  await cargarMisPublicaciones();
+};
+
+window.borrarMiPublicacion = async (origen, id) => {
+  if(!confirm("¿Borrar esta publicación?")) return;
+  const tabla = origen === "ganado" ? "ganado_web" : "articulos_web";
+  await db.from(tabla).delete().eq("id", id);
+  await cargarMisPublicaciones();
+};
+
 async function cargar(){
   ponerWhatsApps(); pintarFiltros();
   try{
@@ -700,10 +877,11 @@ async function cargar(){
     try{ await cargarConfig(); }catch(e){ /* config_sitio aún no existe: se usan valores por defecto */ }
     try{ await cargarVendedoresPublicos(); }catch(e){ /* vendedores aún no existe */ }
     const {data, error} = await db.from("ganado_web").select("*")
-      .eq("publicado", true).order("vendido").order("created_at",{ascending:false});
+      .eq("publicado", true).eq("estado_publicacion","aprobado").order("vendido").order("created_at",{ascending:false});
     if(error) throw error;
     animales = data || [];
     db.auth.onAuthStateChange(() => refrescarSesion());
+    await refrescarSesion();
     cargarSubasta();
     try{ await cargarArticulos(); }catch(e){ /* articulos_web aún no existe */ }
   }catch(e){
@@ -786,7 +964,7 @@ function suscribirTiempoReal(){
 async function refrescarSesion(){
   if(!db) return;
   const {data:{session}} = await db.auth.getSession();
-  if(!session){ sesionUsuario = null; renderVivo(); renderVendedoresPublicos(); cargarMisOfertas(); return; }
+  if(!session){ sesionUsuario = null; renderVivo(); renderVendedoresPublicos(); cargarMisOfertas(); renderMiPublicacionEstado(); return; }
   const {data} = await db.from("perfiles").select("*").eq("id", session.user.id).maybeSingle();
   let depositoPendiente = false;
   if(data && data.estado_verificacion === "aprobado" && !data.deposito_pagado){
@@ -807,6 +985,7 @@ async function refrescarSesion(){
   renderVivo();
   renderVendedoresPublicos();
   cargarMisOfertas();
+  renderMiPublicacionEstado();
 }
 
 function siguienteMinimo(lote){

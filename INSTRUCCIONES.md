@@ -130,6 +130,39 @@ Al agregar o editar un animal o un artículo, en **"Modo de venta"** elija:
 
 La subasta en vivo sigue siendo su propio modo aparte (con pujas en tiempo real), no cambia con esto.
 
+## Publicaciones de usuarios: la gente publica desde su casa
+
+Ya no depende solo de usted para subir cada animal o artículo. Un comprador con su identidad ya verificada (el mismo proceso de KYC de las subastas en línea) puede publicar su propio ganado o su maquinaria/silobolsa/pacas directo desde la página, sin tocar `/admin.html`:
+
+1. En la página pública, sección **"Vende con nosotros"** → **"Publique usted mismo desde casa"**. Si no ha iniciado sesión o no tiene su identidad aprobada, la página le explica qué falta (crear cuenta o completar la verificación en "Subastas en línea").
+2. Una vez aprobado, llena el formulario (tipo de artículo, categoría, precio, foto, modo de venta) y publica. **Queda "en revisión" y NO aparece en el catálogo público todavía** — así evitamos anuncios falsos o de mala fe.
+3. A usted le llega a `/admin.html` → nueva sección **"Publicaciones de usuarios"**, con **Aprobar**/**Rechazar** (si rechaza, puede escribir el motivo y se lo muestra al usuario en su propia lista "Mis publicaciones").
+4. Una vez aprobada, aparece igual que cualquier otro animal/artículo del catálogo — con la ventaja de que el usuario mismo puede editar precio/foto o marcarla vendida desde su "Mis publicaciones", sin escribirle a usted. Al marcarla vendida, se genera sola la factura con la **comisión de mercado** (configurable en `/admin.html` → "Configuración del sitio", campo "Comisión de mercado (%)" — es distinta de la comisión de los vendedores consignatarios).
+5. El comprador nunca puede tocar el estado de aprobación, el vendedor asignado, ni publicar a nombre de otro — eso solo lo cambia usted.
+
+⚠️ Esta factura de comisión queda **registrada**, pero el **cobro real de esa comisión todavía no está conectado a nada** — ver la sección de abajo sobre PixelPay.
+
+## Cobro real de la comisión (PixelPay u otra pasarela) — qué falta
+
+Ahora mismo, cuando alguien marca su propio artículo como vendido, el sistema calcula y registra cuánto le debe al rancho por comisión, pero no se lo cobra automáticamente — es un número en la factura, nada más. Para que el cobro sea real hay dos caminos, y le recomiendo el primero por ser mucho más simple y no requerir licencias:
+
+- **Cobrar solo la comisión** (recomendado): el comprador y el vendedor arreglan el pago del animal/artículo entre ellos (transferencia, efectivo, como ya hacen), y la página le cobra al vendedor SOLO su comisión con tarjeta a través de PixelPay, como un cobro normal de comercio. Esto no requiere que el rancho maneje ni retenga el dinero de la venta completa.
+- Manejar el dinero completo de la venta (dinero del comprador pasa por el rancho y luego se le entrega al vendedor) es "escrow" — legalmente se acerca a ser un transmisor de dinero, con requisitos regulatorios en Honduras que no vale la pena asumir solo para esto.
+
+**Lo que necesito de usted para conectarlo de verdad (no de mentiras):**
+1. Cree una cuenta de comercio (merchant account) en **PixelPay** (pixelpay.co) — es la pasarela hondureña más usada. Con eso le dan sus credenciales de API (llave pública y llave privada/secreta).
+2. Me pasa esas credenciales (o las carga usted mismo como variable de entorno en Vercel, mejor aún — así ni yo las veo).
+3. Con eso conecto un botón real de "Pagar mi comisión" en la factura del vendedor, que cobra la tarjeta a través de PixelPay y marca la factura como pagada solo cuando el banco confirma el cobro.
+
+## Boletines y promociones automáticas — qué falta
+
+Ya se recopilan los datos de compradores y vendedores (nombre, teléfono, correo) en los directorios de `/admin.html`, exportables en CSV. Para que el envío de boletines sea automático (no manual, uno por uno) hace falta un servicio de correo masivo — Gmail/Outlook normales bloquean el envío masivo y lo marcan como spam.
+
+**Lo que necesito de usted:**
+1. Cree una cuenta en un servicio de correo masivo — le recomiendo **Brevo** (antes Sendinblue, tiene plan gratis hasta 300 correos/día y es fácil de usar en español) o Mailchimp.
+2. Me pasa su API key de ese servicio (o la carga usted mismo en Vercel como variable de entorno).
+3. Con eso conecto: (a) que cada nuevo comprador/vendedor se agregue solo a su lista de contactos ahí, y (b) un botón en `/admin.html` para mandar un boletín/promoción a toda su lista (o segmentada, ej. solo vendedores, o solo compradores de cierta zona) sin salir de su panel.
+
 ## Precio también en dólares
 
 Se calcula solo a partir del tipo de cambio que usted pone en `/admin.html` → "Configuración del sitio". Actualícelo cuando cambie el valor del dólar; no se conecta a ningún servicio externo.
@@ -154,6 +187,7 @@ Esto quedó fuera de este cambio porque comprar un dominio requiere su tarjeta y
 
 - ~~Fase 2: registro de vendedores terceros~~ — ya está integrada arriba.
 - ~~Fase 3: pujas en tiempo real~~ — ya está integrada arriba.
-- **Fase 4**: app instalable (PWA) para que los compradores reciban notificación cuando empieza un lote nuevo; y, si más adelante quiere cobrar el depósito con tarjeta en línea en vez de transferencia manual, contratar una pasarela de pago (Stripe u otra que opere en Honduras).
+- ~~Fase 4: publicaciones de usuarios (marketplace) con moderación~~ — ya está integrada arriba.
+- **Fase 5**: cobro real de la comisión de mercado con PixelPay, y boletines/promociones automáticas por correo — ambas listas para conectar en cuanto usted tenga las cuentas (ver secciones de arriba); app instalable (PWA) para notificaciones cuando empieza un lote nuevo.
 
 Soli Deo Gloria 🐂
