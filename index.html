@@ -388,6 +388,7 @@ footer a:hover{color:var(--fierro)}
     </div>
     <div class="sub-cta">
       <a class="btn btn-ws" id="ws-inscribir" href="#" target="_blank" rel="noopener">Inscribirme por WhatsApp</a>
+      <a class="btn btn-linea" href="legal.html#reglamento">Ver el reglamento de la subasta</a>
       <a class="btn btn-linea" href="https://www.facebook.com/ranchomorolicahn" target="_blank" rel="noopener">Seguir en Facebook</a>
     </div>
   </div>
@@ -536,8 +537,15 @@ footer a:hover{color:var(--fierro)}
       <h5>Navegación</h5>
       <a href="#catalogo">Catálogo</a>
       <a href="#subastas">Subastas en línea</a>
+      <a href="#mi-cuenta">Mi cuenta</a>
       <a href="#vender">Vende con nosotros</a>
       <a href="#ubicacion">Ubicación</a>
+    </div>
+    <div>
+      <h5>Legal</h5>
+      <a href="legal.html#reglamento">Reglamento de la subasta</a>
+      <a href="legal.html#terminos">Términos y condiciones</a>
+      <a href="legal.html#privacidad">Política de privacidad</a>
     </div>
     <div>
       <h5>Síganos</h5>
@@ -1158,6 +1166,7 @@ function renderCuenta(){
           <input id="auth-pass" type="password" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="new-password">
           <div id="cta-turnstile" style="margin:10px 0"></div>
           <button class="btn btn-fierro" onclick="hacerRegistro()">Crear cuenta</button>
+          <p style="font-size:.78rem;color:#7a7263;margin-top:8px;line-height:1.4">Al crear su cuenta acepta el <a href="legal.html#reglamento" style="color:var(--cuero)">reglamento de la subasta</a>, los <a href="legal.html#terminos" style="color:var(--cuero)">términos</a> y la <a href="legal.html#privacidad" style="color:var(--cuero)">política de privacidad</a>.</p>
         `}
         <div class="puja-msg" id="auth-msg"></div>
       </div>`;
