@@ -1003,9 +1003,19 @@ begin
   if not public.es_admin() then
     new.es_admin := old.es_admin;
     new.bloqueado := old.bloqueado;
-    new.estado_verificacion := old.estado_verificacion;
-    new.motivo_rechazo := old.motivo_rechazo;
     new.deposito_pagado := old.deposito_pagado;
+    -- Única excepción: al comprador al que le rechazaron sus datos
+    -- se le permite corregirlos y volver a ponerlos en la cola de
+    -- revisión (rechazado -> pendiente). Nunca puede aprobarse a
+    -- sí mismo; cualquier otro cambio de estado se revierte.
+    if old.estado_verificacion = 'rechazado'
+       and new.estado_verificacion = 'pendiente'
+       and old.id = auth.uid() then
+      new.motivo_rechazo := null;
+    else
+      new.estado_verificacion := old.estado_verificacion;
+      new.motivo_rechazo := old.motivo_rechazo;
+    end if;
   end if;
   return new;
 end;

@@ -55,6 +55,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
 <div class="top"><span class="marca"><img src="logo.png" alt="Rancho Morolica"><b>Panel</b></span><button class="btn btn-chico btn-gris" id="btn-salir" style="display:none">Salir</button></div>
 <div class="wrap">
 
+  <!-- RESUMEN DE PENDIENTES -->
+  <div class="tarjeta oculto-sec" id="sec-pendientes" style="border-left:6px solid var(--fierro)">
+    <h2>Le toca revisar</h2>
+    <div id="lista-pendientes"></div>
+    <p style="font-size:.8rem;color:#7a7263;margin-top:10px">Esta lista se actualiza sola cada minuto mientras tenga el panel abierto. <a href="#" id="link-avisos" style="color:var(--cuero)">Activar avisos del navegador</a> para que le suene cuando entre algo nuevo.</p>
+  </div>
+
   <!-- LOGIN -->
   <div class="tarjeta" id="sec-login">
     <h2>Iniciar sesión</h2>
@@ -352,7 +359,7 @@ const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
 
-const SECCIONES_ADMIN = ["#sec-seguridad","#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-moderacion","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-pagos","#sec-ventas"];
+const SECCIONES_ADMIN = ["#sec-pendientes","#sec-seguridad","#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-moderacion","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-pagos","#sec-ventas"];
 
 /* ===== "NO SOY UN ROBOT" (Cloudflare Turnstile) — opcional ===== */
 let turnstileTokenLogin = null;
@@ -427,6 +434,8 @@ async function sesion(){
     await cargarDepositos();
     await cargarPagos();
     await cargarVentas();
+    pintarPendientes();
+    arrancarVigilancia();
   }
 }
 
@@ -1296,6 +1305,68 @@ $("#btn-csv-compradores").onclick = () => {
   })));
 };
 
+/* ===== LE TOCA REVISAR: resumen y avisos ===== */
+
+const TITULO_BASE = document.title;
+let totalPendientesAnterior = null;
+let vigilanciaArrancada = false;
+
+function contarPendientes(){
+  const n = s => Number(($(s) && $(s).textContent) || 0);
+  return [
+    {n: n("#total-pendientes-kyc"),  txt: "comprador(es) esperando que revise su identidad", ir: "#sec-verificacion"},
+    {n: n("#total-pendientes-dep"),  txt: "depósito(s) de garantía por confirmar",           ir: "#sec-depositos"},
+    {n: n("#total-moderacion"),      txt: "publicación(es) de usuarios por aprobar",          ir: "#sec-moderacion"},
+    {n: n("#total-ofertas"),         txt: "oferta(s) sin responder",                          ir: "#sec-ofertas"},
+    {n: n("#total-pendientes-vend"), txt: "vendedor(es) esperando aprobación",                ir: "#sec-vendedores"},
+    {n: n("#total-pagos-pend"),      txt: "venta(s) por cobrar",                              ir: "#sec-pagos"}
+  ].filter(x => x.n > 0);
+}
+
+function pintarPendientes(){
+  const items = contarPendientes();
+  const total = items.reduce((a,b) => a + b.n, 0);
+  const cont = $("#lista-pendientes");
+  if(!cont) return;
+
+  cont.innerHTML = total
+    ? items.map(i => `<div class="lista-item" style="cursor:pointer" onclick="document.querySelector('${i.ir}').scrollIntoView({behavior:'smooth'})">
+        <div class="mini" style="background:var(--fierro);color:#fff;font-size:1.1rem">${i.n}</div>
+        <div class="li-info"><b>${i.txt}</b><span style="color:var(--cuero)">Tocar para ir →</span></div>
+      </div>`).join("")
+    : `<p style="color:var(--ok);font-weight:700">✅ Todo al día. No hay nada esperando por usted.</p>`;
+
+  document.title = total ? `(${total}) ${TITULO_BASE}` : TITULO_BASE;
+
+  // Aviso del navegador solo cuando aparece algo nuevo, no al abrir.
+  if(totalPendientesAnterior !== null && total > totalPendientesAnterior && "Notification" in window && Notification.permission === "granted"){
+    try{
+      new Notification("Rancho Morolica", {
+        body: "Hay algo nuevo esperando su revisión en el panel.",
+        icon: "favicon-180.png"
+      });
+    }catch(e){}
+  }
+  totalPendientesAnterior = total;
+}
+
+/* Revisa solo cada minuto, sin recargar la página. */
+function arrancarVigilancia(){
+  if(vigilanciaArrancada) return;
+  vigilanciaArrancada = true;
+  setInterval(async () => {
+    try{
+      await cargarVerificacion();
+      await cargarDepositos();
+      await cargarModeracion();
+      await cargarOfertas();
+      await cargarVendedores();
+      await cargarPagos();
+      pintarPendientes();
+    }catch(e){ /* si falla una vuelta, se reintenta en la siguiente */ }
+  }, 60000);
+}
+
 /* ===== PAGOS Y LIQUIDACIÓN ===== */
 
 const PASOS_PAGO = ["pendiente","en_revision","pagado","entregado","liquidado"];
@@ -1422,6 +1493,15 @@ $("#btn-pass-nueva").onclick = async () => {
   msg("#pass-nueva-msg","¡Contraseña cambiada!","ok");
   $("#pass-nueva").value = "";
   sesion();
+};
+
+$("#link-avisos").onclick = async (ev) => {
+  ev.preventDefault();
+  if(!("Notification" in window)) return alert("Este navegador no permite avisos. En iPhone o iPad debe agregar la página a la pantalla de inicio primero.");
+  const permiso = await Notification.requestPermission();
+  alert(permiso === "granted"
+    ? "Listo. Mientras tenga este panel abierto le avisamos cuando entre algo nuevo."
+    : "No se activaron los avisos. Puede permitirlos desde los ajustes del navegador.");
 };
 
 sesion();

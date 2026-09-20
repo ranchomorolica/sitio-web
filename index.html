@@ -592,6 +592,7 @@ let animales = [], filtro = "Todos", busqueda = "";
 let db = null;
 let sesionUsuario = null, authTab = "login", mfaPendiente = false, recuperandoPass = false;
 let avisoCuenta = null;   // mensaje que debe sobrevivir al repintado de "Mi cuenta"
+let corrigiendoKyc = false;  // el comprador está corrigiendo datos que le rechazaron
 let subastaActivaId = null, loteVivo = null, ultimoLoteId = null, historialCache = [], canalSubasta = null;
 let configSitio = { tipo_cambio_lps_por_usd: 26.5, deposito_garantia_lps: 10000, datos_bancarios: "" };
 let vendedoresPublicos = [], resenaVendedorSel = null;
@@ -1121,7 +1122,18 @@ async function refrescarSesion(){
     motivoRechazo: data && data.motivo_rechazo,
     tieneIdentidad: !!(data && data.identidad),
     depositoPagado: !!(data && data.deposito_pagado),
-    depositoPendiente
+    depositoPendiente,
+    kyc: {
+      identidad: (data && data.identidad) || "",
+      fechaNacimiento: (data && data.fecha_nacimiento) || "",
+      direccion: (data && data.direccion) || "",
+      estadoCivil: (data && data.estado_civil) || "",
+      ocupacion: (data && data.ocupacion) || "",
+      referenciaNombre: (data && data.referencia_nombre) || "",
+      referenciaTelefono: (data && data.referencia_telefono) || "",
+      fotoFrente: (data && data.foto_id_frente_url) || "",
+      fotoDorso: (data && data.foto_id_dorso_url) || ""
+    }
   };
   renderVivo();
   renderVendedoresPublicos();
@@ -1243,9 +1255,10 @@ function renderCuenta(){
   let estadoHtml;
   if(sesionUsuario.bloqueado){
     estadoHtml = `<div class="puja-msg err">Su cuenta está bloqueada. Escríbanos por WhatsApp para resolverlo.</div>`;
-  } else if(sesionUsuario.estadoVerificacion === "pendiente" && !sesionUsuario.tieneIdentidad){
+  } else if((sesionUsuario.estadoVerificacion === "pendiente" && !sesionUsuario.tieneIdentidad) || corrigiendoKyc){
     estadoHtml = `
       <div class="kyc-box">
+        ${corrigiendoKyc ? `<div class="estado-info rechazado" style="margin-bottom:12px"><b>Corrija lo que le indicamos y vuelva a enviar</b>${sesionUsuario.motivoRechazo ? `<p>Motivo del rechazo: ${sesionUsuario.motivoRechazo}</p>` : ""}</div>` : ""}
         <p style="font-size:.85rem;color:#5c554a;margin-bottom:10px">Para pujar o publicar sus propios artículos, el rancho necesita verificar su identidad. Complete estos datos una sola vez. <b>Lo que escriba se va guardando solo</b>, así que puede salirse a buscar su documento y volver sin perder nada.</p>
         <div id="kyc-aviso-borrador"></div>
         <div class="campo"><label>Número de identidad *</label><input id="kyc-identidad"></div>
@@ -1269,10 +1282,11 @@ function renderCuenta(){
   } else if(sesionUsuario.estadoVerificacion === "pendiente"){
     estadoHtml = `<div class="estado-info"><b>Sus datos están en revisión</b><p>El rancho está verificando su identidad. Le avisaremos por WhatsApp cuando sea aprobado.</p></div>`;
   } else if(sesionUsuario.estadoVerificacion === "rechazado"){
-    estadoHtml = `<div class="estado-info rechazado"><b>Su registro no fue aprobado</b>
-      ${sesionUsuario.motivoRechazo ? `<p>Motivo: ${sesionUsuario.motivoRechazo}</p>` : ""}
-      <p>Escríbanos por WhatsApp para corregir sus datos.</p>
-      <a class="btn btn-ws" href="${wsLink('Hola Rancho Morolica, mi registro no fue aprobado y quiero corregir mis datos.')}" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+    estadoHtml = `<div class="estado-info rechazado"><b>Sus datos no fueron aprobados</b>
+      ${sesionUsuario.motivoRechazo ? `<p><b>Motivo:</b> ${sesionUsuario.motivoRechazo}</p>` : ""}
+      <p>Puede corregir lo que haga falta aquí mismo y volver a enviarlo — no tiene que crear otra cuenta.</p>
+      <button class="btn btn-fierro" onclick="corregirMisDatos()">Corregir mis datos y reenviar</button>
+      <a class="btn btn-ws" style="margin-top:8px" href="${wsLink('Hola Rancho Morolica, mis datos no fueron aprobados y tengo una duda.')}" target="_blank" rel="noopener">O escribir por WhatsApp</a>
     </div>`;
   } else if(sesionUsuario.estadoVerificacion === "aprobado" && !sesionUsuario.depositoPagado){
     estadoHtml = sesionUsuario.depositoPendiente ? `
@@ -1312,6 +1326,7 @@ function renderCuenta(){
   // Si en pantalla quedó el formulario de verificación, engancha
   // el guardado automático y recupera lo escrito antes.
   if(document.getElementById("kyc-identidad")){
+    if(corrigiendoKyc) rellenarKycConLoGuardado();
     activarBorrador("kyc", CAMPOS_KYC, "kyc-aviso-borrador");
     pintarEstadoFotosKyc();
   }
@@ -1339,6 +1354,34 @@ function pintarEstadoFotosKyc(){
       el.className = "puja-msg ok";
     } else { el.textContent = ""; el.className = "puja-msg"; }
   });
+}
+
+/* El comprador rechazado corrige sin volver a empezar: el
+   formulario aparece con lo que ya había mandado. */
+window.corregirMisDatos = () => {
+  corrigiendoKyc = true;
+  renderCuenta();
+  const sec = document.getElementById("mi-cuenta");
+  if(sec) sec.scrollIntoView({behavior:"smooth", block:"start"});
+};
+
+function rellenarKycConLoGuardado(){
+  const k = (sesionUsuario && sesionUsuario.kyc) || {};
+  const pares = {
+    "kyc-identidad": k.identidad, "kyc-fecha-nacimiento": k.fechaNacimiento,
+    "kyc-direccion": k.direccion, "kyc-estado-civil": k.estadoCivil,
+    "kyc-ocupacion": k.ocupacion, "kyc-ref-nombre": k.referenciaNombre,
+    "kyc-ref-telefono": k.referenciaTelefono
+  };
+  Object.entries(pares).forEach(([id, valor]) => {
+    const el = document.getElementById(id);
+    if(el && valor) el.value = valor;
+  });
+  // Las fotos que ya había subido siguen sirviendo si no manda otras.
+  try{
+    if(k.fotoFrente) localStorage.setItem(BORRADOR + "foto_frente", k.fotoFrente);
+    if(k.fotoDorso) localStorage.setItem(BORRADOR + "foto_dorso", k.fotoDorso);
+  }catch(e){}
 }
 
 window.subirFotoKyc = async (cual) => {
@@ -1753,9 +1796,14 @@ window.enviarKyc = async () => {
       identidad, direccion, estado_civil: estadoCivil,
       fecha_nacimiento: fechaNacimiento, ocupacion: ocupacion || null,
       referencia_nombre: referenciaNombre || null, referencia_telefono: referenciaTelefono || null,
-      foto_id_frente_url: rutaFrente, foto_id_dorso_url: rutaDorso
+      foto_id_frente_url: rutaFrente, foto_id_dorso_url: rutaDorso,
+      // Vuelve a la cola de revisión del rancho. La base de datos
+      // solo permite este cambio de rechazado a pendiente — nadie
+      // se puede aprobar a sí mismo.
+      estado_verificacion: "pendiente"
     }).eq("id", sesionUsuario.id);
     if(error) throw error;
+    corrigiendoKyc = false;
     // Enviado con éxito: ya no hace falta el borrador.
     borrarBorrador("kyc");
     try{ localStorage.removeItem(BORRADOR + "foto_frente"); localStorage.removeItem(BORRADOR + "foto_dorso"); }catch(e){}
