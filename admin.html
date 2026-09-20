@@ -1389,8 +1389,10 @@ $("#link-recuperar").onclick = async (ev) => {
   ev.preventDefault();
   const correo = $("#log-email").value.trim() || (prompt("¿Cuál es el correo de su cuenta de administrador?", "") || "").trim();
   if(!correo) return msg("#log-msg","Escriba su correo arriba y vuelva a tocar el enlace.","err");
-  const {error} = await db.auth.resetPasswordForEmail(correo, { redirectTo: window.location.origin + window.location.pathname });
-  msg("#log-msg", error ? ("No se pudo enviar: " + error.message) : "Le mandamos el enlace a su correo. Revise también la carpeta de spam.", error ? "err" : "ok");
+  // Sin "redirectTo": cae en el Site URL (la página pública), donde
+  // se escribe la contraseña nueva. Luego se vuelve a entrar aquí.
+  const {error} = await db.auth.resetPasswordForEmail(correo);
+  msg("#log-msg", error ? ("No se pudo enviar: " + error.message) : "Le mandamos el enlace a su correo (revise spam). Al abrirlo cambia la contraseña en la página principal, y luego vuelve aquí a entrar.", error ? "err" : "ok");
 };
 
 $("#btn-pass-nueva").onclick = async () => {

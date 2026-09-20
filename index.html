@@ -1416,7 +1416,10 @@ window.pedirRecuperacion = async (ev) => {
   const campo = document.getElementById("auth-email");
   const correo = (campo && campo.value.trim()) || (prompt("¿Cuál es el correo de su cuenta?", "") || "").trim();
   if(!correo){ msgEl.textContent = "Escriba su correo arriba y vuelva a tocar el enlace."; msgEl.className = "puja-msg err"; return; }
-  const {error} = await db.auth.resetPasswordForEmail(correo, { redirectTo: window.location.origin + window.location.pathname });
+  // Sin "redirectTo": Supabase usa el Site URL configurado en el
+  // panel, que siempre está permitido. Así no hay que mantener
+  // ninguna lista de Redirect URLs para que esto funcione.
+  const {error} = await db.auth.resetPasswordForEmail(correo);
   if(error){ msgEl.textContent = "No se pudo enviar: " + error.message; msgEl.className = "puja-msg err"; return; }
   msgEl.textContent = "Le mandamos un correo con el enlace para cambiar su contraseña. Revise también la carpeta de spam.";
   msgEl.className = "puja-msg ok";
