@@ -241,6 +241,27 @@ $$;
 
 grant execute on function public.registrar_vendedor(text,text,text,text,text,text,text,text,text,text) to anon, authenticated;
 
+-- ¿Ese número de teléfono ya lo está usando otra cuenta?
+-- Responde solamente sí o no — nunca devuelve los datos de nadie —
+-- para poder avisarle a la persona ANTES de que cree una cuenta
+-- duplicada. Compara solo los dígitos, así "3259-8724",
+-- "32598724" y "+504 3259 8724" cuentan como el mismo número.
+create or replace function public.telefono_ya_registrado(p_telefono text)
+returns boolean
+language sql stable
+security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.perfiles
+    where regexp_replace(coalesce(telefono, ''), '\D', '', 'g') <> ''
+      and right(regexp_replace(coalesce(telefono, ''), '\D', '', 'g'), 8)
+        = right(regexp_replace(coalesce(p_telefono, ''), '\D', '', 'g'), 8)
+      and length(regexp_replace(coalesce(p_telefono, ''), '\D', '', 'g')) >= 8
+  );
+$$;
+
+grant execute on function public.telefono_ya_registrado(text) to anon, authenticated;
+
 -- Reseñas y ranking de esos vendedores, dejadas por compradores
 -- ya verificados. vendedor_id es integer porque así es la llave
 -- real de la tabla vendedores (id_vendedor serial), no uuid.

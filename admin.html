@@ -310,6 +310,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <h2>Directorio de compradores (<span id="total-compradores">0</span>)</h2>
     <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Puede bloquear a alguien si es necesario; un comprador bloqueado no puede pujar aunque esté aprobado y con depósito pagado. Use los íconos para escribirle, llamarlo o mandarle correo directo, o descargue el directorio completo.</p>
     <button class="btn btn-gris" id="btn-csv-compradores">Descargar directorio de compradores (CSV)</button>
+    <div id="aviso-duplicados" style="margin-top:12px"></div>
     <div id="lista-compradores" style="margin-top:14px"></div>
   </div>
 
@@ -1244,11 +1245,28 @@ async function cargarCompradores(){
   const lista = data || [];
   window._compradores = lista;
   $("#total-compradores").textContent = lista.length;
+
+  // Detecta cuentas que comparten teléfono o identidad — señal de
+  // que una misma persona abrió varias cuentas.
+  const soloDigitos = t => (t||"").replace(/\D/g,"").slice(-8);
+  const cuentaTel = {}, cuentaId = {};
+  lista.forEach(p => {
+    const t = soloDigitos(p.telefono);
+    if(t.length === 8) cuentaTel[t] = (cuentaTel[t]||0) + 1;
+    const i = (p.identidad||"").replace(/\D/g,"");
+    if(i) cuentaId[i] = (cuentaId[i]||0) + 1;
+  });
+  const repetidos = lista.filter(p => cuentaTel[soloDigitos(p.telefono)] > 1 || cuentaId[(p.identidad||"").replace(/\D/g,"")] > 1).length;
+  $("#aviso-duplicados").innerHTML = repetidos
+    ? `<div class="msg err" style="display:block">⚠️ Hay ${repetidos} cuenta${repetidos===1?"":"s"} que comparte${repetidos===1?"":"n"} teléfono o número de identidad con otra. Están marcadas abajo con <b>DUPLICADO</b> — revíselas antes de aprobarlas.</div>`
+    : "";
+
   $("#lista-compradores").innerHTML = lista.map(p => `
     <div class="lista-item">
       <div class="mini">${(p.nombre||"?").charAt(0).toUpperCase()}</div>
       <div class="li-info">
         <b>${p.nombre || "(sin nombre)"}</b>
+        ${(cuentaTel[soloDigitos(p.telefono)] > 1 || cuentaId[(p.identidad||"").replace(/\D/g,"")] > 1) ? '<span class="pill vend">DUPLICADO</span> ' : ""}
         ${p.telefono || "sin teléfono"} ${p.correo?(" · "+p.correo):""}<br>
         <span class="pill ${p.estado_verificacion==='aprobado'?'pub':p.estado_verificacion==='rechazado'?'vend':'oculto'}">${p.estado_verificacion}</span>
         <span class="pill ${p.deposito_pagado?'pub':'oculto'}">${p.deposito_pagado?'Depósito OK':'Sin depósito'}</span>

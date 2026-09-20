@@ -589,6 +589,7 @@ const CATEGORIAS = ["Todos","Toro","Vaca parida","Vaca preñada","Vaquilla","Nov
 let animales = [], filtro = "Todos", busqueda = "";
 let db = null;
 let sesionUsuario = null, authTab = "login", mfaPendiente = false, recuperandoPass = false;
+let avisoCuenta = null;   // mensaje que debe sobrevivir al repintado de "Mi cuenta"
 let subastaActivaId = null, loteVivo = null, ultimoLoteId = null, historialCache = [], canalSubasta = null;
 let configSitio = { tipo_cambio_lps_por_usd: 26.5, deposito_garantia_lps: 10000, datos_bancarios: "" };
 let vendedoresPublicos = [], resenaVendedorSel = null;
@@ -1212,7 +1213,7 @@ function renderCuenta(){
           <input id="auth-email" type="email" placeholder="Correo" autocomplete="email">
           <input id="auth-pass" type="password" placeholder="Contraseña" autocomplete="current-password">
           <div id="cta-turnstile" style="margin:10px 0"></div>
-          <button class="btn btn-fierro" onclick="hacerLogin()">Entrar</button>
+          <button class="btn btn-fierro" id="btn-entrar-cuenta" onclick="hacerLogin()">Entrar</button>
           <p style="font-size:.82rem;margin-top:10px"><a href="#" onclick="pedirRecuperacion(event)" style="color:var(--cuero)">¿Olvidó su contraseña?</a></p>
         ` : `
           <input id="auth-nombre" type="text" placeholder="Su nombre completo">
@@ -1220,7 +1221,7 @@ function renderCuenta(){
           <input id="auth-email" type="email" placeholder="Correo" autocomplete="email">
           <input id="auth-pass" type="password" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="new-password">
           <div id="cta-turnstile" style="margin:10px 0"></div>
-          <button class="btn btn-fierro" onclick="hacerRegistro()">Crear cuenta</button>
+          <button class="btn btn-fierro" id="btn-crear-cuenta" onclick="hacerRegistro()">Crear cuenta</button>
           <p style="font-size:.78rem;color:#7a7263;margin-top:8px;line-height:1.4">Al crear su cuenta acepta el <a href="legal.html#reglamento" style="color:var(--cuero)">reglamento de la subasta</a>, los <a href="legal.html#terminos" style="color:var(--cuero)">términos</a> y la <a href="legal.html#privacidad" style="color:var(--cuero)">política de privacidad</a>.</p>
         `}
         <div class="puja-msg" id="auth-msg"></div>
@@ -1280,8 +1281,14 @@ function renderCuenta(){
     estadoHtml = `<div class="puja-msg ok">✅ Su cuenta está lista para pujar, publicar y participar. ¡Gracias!</div>`;
   }
 
+  const avisoHtml = avisoCuenta
+    ? `<div class="puja-msg ${avisoCuenta.tipo}" style="font-size:.95rem;font-weight:600;margin-bottom:12px">${avisoCuenta.texto}</div>`
+    : "";
+  avisoCuenta = null;
+
   cont.innerHTML = `
     <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
+    ${avisoHtml}
     ${estadoHtml}
     <div id="mis-compras" style="margin-top:16px"></div>
     <div class="kyc-box" id="cta-2fa-box" style="margin-top:16px">
@@ -1371,14 +1378,41 @@ window.hacerLogin = async () => {
     if(!turnstileTokenCuenta){ msgEl.textContent = "Complete la verificación \"No soy un robot\"."; msgEl.className = "puja-msg err"; return; }
     opts.captchaToken = turnstileTokenCuenta;
   }
+  const btn = document.getElementById("btn-entrar-cuenta");
+  if(btn){ btn.disabled = true; btn.textContent = "Entrando…"; }
   const {error} = await db.auth.signInWithPassword({email, password: pass, options: opts});
+  if(btn){ btn.disabled = false; btn.textContent = "Entrar"; }
   if(error){
     if(typeof turnstile !== "undefined") turnstile.reset();
     turnstileTokenCuenta = null;
-    msgEl.textContent = "Correo o contraseña incorrectos."; msgEl.className = "puja-msg err"; return;
+    msgEl.textContent = mensajeError(error);
+    msgEl.className = "puja-msg err";
+    msgEl.scrollIntoView({behavior:"smooth", block:"center"});
+    return;
   }
+  avisoCuenta = {texto: "Sesión iniciada.", tipo: "ok"};
   await refrescarSesion();
 };
+
+/* Traduce a español los errores que Supabase devuelve en inglés,
+   para que el comprador entienda qué le pasó. */
+function mensajeError(error){
+  const t = (error && error.message ? error.message : "").toLowerCase();
+  if(t.includes("already registered") || t.includes("already been registered"))
+    return "Ese correo ya tiene una cuenta. Use la pestaña \"Ya tengo cuenta\" para entrar, o toque \"¿Olvidó su contraseña?\".";
+  if(t.includes("invalid login credentials")) return "Correo o contraseña incorrectos.";
+  if(t.includes("email not confirmed")) return "Todavía no confirmó su correo. Revise su bandeja y la carpeta de spam.";
+  if(t.includes("password should be")) return "La contraseña debe tener al menos 6 caracteres.";
+  if(t.includes("invalid email") || t.includes("unable to validate email"))
+    return "Ese correo no parece válido. Revise que esté bien escrito.";
+  if(t.includes("rate limit") || t.includes("too many"))
+    return "Demasiados intentos seguidos. Espere un minuto y vuelva a probar.";
+  if(t.includes("captcha")) return "No se pudo verificar que usted no es un robot. Vuelva a intentarlo.";
+  if(t.includes("database error")) return "Hubo un problema guardando su cuenta. Escríbanos por WhatsApp y lo resolvemos.";
+  if(t.includes("failed to fetch") || t.includes("network"))
+    return "No hay conexión con el servidor. Revise su internet y vuelva a intentar.";
+  return error && error.message ? error.message : "Ocurrió un error inesperado.";
+}
 
 window.hacerRegistro = async () => {
   const nombre = document.getElementById("auth-nombre").value.trim();
@@ -1386,24 +1420,63 @@ window.hacerRegistro = async () => {
   const email = document.getElementById("auth-email").value.trim();
   const pass = document.getElementById("auth-pass").value;
   const msgEl = document.getElementById("auth-msg");
-  if(!nombre || !email || pass.length < 6){
-    msgEl.textContent = "Complete nombre, correo y una contraseña de al menos 6 caracteres.";
-    msgEl.className = "puja-msg err";
-    return;
-  }
+  const btn = document.getElementById("btn-crear-cuenta");
+  const aviso = (texto, tipo) => {
+    msgEl.textContent = texto;
+    msgEl.className = "puja-msg " + tipo;
+    msgEl.scrollIntoView({behavior:"smooth", block:"center"});
+  };
+
+  if(!nombre){ return aviso("Escriba su nombre completo.", "err"); }
+  if(!telefono){ return aviso("Escriba su número de WhatsApp — lo necesitamos para contactarlo.", "err"); }
+  if(!email){ return aviso("Escriba su correo.", "err"); }
+  if(pass.length < 6){ return aviso("La contraseña debe tener al menos 6 caracteres.", "err"); }
+
   const opts = {data:{nombre, telefono}};
   if(turnstileListo()){
-    if(!turnstileTokenCuenta){ msgEl.textContent = "Complete la verificación \"No soy un robot\"."; msgEl.className = "puja-msg err"; return; }
+    if(!turnstileTokenCuenta){ return aviso("Complete la verificación \"No soy un robot\".", "err"); }
     opts.captchaToken = turnstileTokenCuenta;
   }
+
+  btn.disabled = true; btn.textContent = "Creando cuenta…";
+  aviso("Creando su cuenta, espere un momento…", "");
+
+  try{
+    // Aviso temprano si ese teléfono ya lo usa otra cuenta.
+    const {data:repetido} = await db.rpc("telefono_ya_registrado", {p_telefono: telefono});
+    if(repetido){
+      btn.disabled = false; btn.textContent = "Crear cuenta";
+      return aviso("Ese número de teléfono ya está registrado con otra cuenta. Si es suya, entre con \"Ya tengo cuenta\". Si cree que es un error, escríbanos por WhatsApp.", "err");
+    }
+  }catch(e){ /* si la función aún no existe en la base, seguimos */ }
+
   const {data, error} = await db.auth.signUp({email, password: pass, options: opts});
+  btn.disabled = false; btn.textContent = "Crear cuenta";
+
   if(error){
     if(typeof turnstile !== "undefined") turnstile.reset();
     turnstileTokenCuenta = null;
-    msgEl.textContent = "No se pudo registrar: " + error.message; msgEl.className = "puja-msg err"; return;
+    return aviso(mensajeError(error), "err");
   }
-  if(data.session){ await refrescarSesion(); }
-  else { msgEl.textContent = "Cuenta creada. Revise su correo para confirmarla y luego inicie sesión."; msgEl.className = "puja-msg ok"; }
+
+  // Supabase devuelve un usuario sin identidades cuando el correo
+  // ya existía: es su forma de no delatar quién está registrado.
+  if(data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0){
+    return aviso("Ese correo ya tiene una cuenta. Entre con \"Ya tengo cuenta\" o toque \"¿Olvidó su contraseña?\".", "err");
+  }
+
+  if(data.session){
+    // El aviso sobrevive al refresco de la pantalla.
+    avisoCuenta = {
+      texto: "✅ ¡Listo, " + nombre.split(" ")[0] + "! Su cuenta quedó creada. Ahora complete su verificación de identidad aquí abajo — el rancho la revisa y le avisa por WhatsApp cuando quede aprobado para pujar.",
+      tipo: "ok"
+    };
+    await refrescarSesion();
+    const sec = document.getElementById("mi-cuenta");
+    if(sec) sec.scrollIntoView({behavior:"smooth", block:"start"});
+  } else {
+    aviso("✅ Cuenta creada. Le mandamos un correo para confirmarla — ábralo y después entre con \"Ya tengo cuenta\". Revise también la carpeta de spam.", "ok");
+  }
 };
 
 window.salirSesionVivo = async () => { await db.auth.signOut(); await refrescarSesion(); };
