@@ -446,6 +446,7 @@ footer a:hover{color:var(--fierro)}
       <p>¿Tiene su propia finca y quiere consignar su ganado en nuestras subastas de forma permanente? Regístrese aquí mismo — el rancho revisa sus datos y le confirma su comisión antes de asignarle animales.</p>
       <div id="rv-estado"></div>
       <div class="kyc-box" id="rv-form">
+        <div id="rv-aviso-borrador"></div>
         <div class="campo"><label>Nombre de contacto *</label><input id="rv-nombre" placeholder="Su nombre completo"></div>
         <div class="campo"><label>Teléfono / WhatsApp *</label><input id="rv-telefono" placeholder="504..."></div>
         <div class="campo"><label>Correo</label><input id="rv-correo" type="email" placeholder="correo@ejemplo.com"></div>
@@ -468,6 +469,7 @@ footer a:hover{color:var(--fierro)}
       <div id="mi-pub-estado"></div>
       <div id="mi-pub-form" style="display:none">
         <div class="kyc-box">
+          <div id="mp-aviso-borrador"></div>
           <div class="campo"><label>¿Qué va a publicar? *</label>
             <select id="mp-tipo" onchange="cambiarTipoPublicacion()">
               <option value="ganado">Un animal</option>
@@ -823,6 +825,8 @@ window.responderContraoferta = async (id, aceptar) => {
 
 /* ===== REGISTRO DE VENDEDORES CONSIGNATARIOS ===== */
 
+const CAMPOS_VENDEDOR = ["rv-nombre","rv-telefono","rv-correo","rv-identidad","rv-procedencia","rv-finca","rv-ubicacion","rv-desc","rv-alias"];
+
 window.enviarRegistroVendedor = async () => {
   const msgEl = document.getElementById("rv-msg");
   const nombre = document.getElementById("rv-nombre").value.trim();
@@ -851,6 +855,7 @@ window.enviarRegistroVendedor = async () => {
     btn.disabled = false; btn.textContent = "Enviar solicitud";
     return;
   }
+  borrarBorrador("vendedor");
   document.getElementById("rv-form").style.display = "none";
   document.getElementById("rv-estado").innerHTML = `<p class="puja-msg ok">¡Solicitud enviada! El rancho revisará sus datos y le confirmará su comisión antes de asignarle animales. Le contactaremos al teléfono que dejó.</p>`;
 };
@@ -940,6 +945,7 @@ window.enviarMiPublicacion = async () => {
     }
     msgEl.textContent = "¡Publicado! Quedó en revisión — le avisaremos cuando el rancho lo apruebe.";
     msgEl.className = "puja-msg ok";
+    borrarBorrador("publicacion");
     ["mp-lote","mp-peso","mp-edad","mp-estado-animal","mp-nombre-articulo","mp-marca-modelo","mp-cantidad-unidad","mp-desc","mp-precio"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
     document.getElementById("mp-foto").value = "";
     await cargarMisPublicaciones();
@@ -991,6 +997,9 @@ window.borrarMiPublicacion = async (origen, id) => {
 
 async function cargar(){
   ponerWhatsApps(); ponerRedes(); pintarFiltros();
+  activarBorrador("vendedor", CAMPOS_VENDEDOR, "rv-aviso-borrador");
+  activarBorrador("publicacion", CAMPOS_PUBLICACION, "mp-aviso-borrador");
+  cambiarTipoPublicacion();
   try{
     if(CONFIG.SUPABASE_ANON_KEY.startsWith("PEGUE")) throw new Error("sin config");
     db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
@@ -1227,6 +1236,7 @@ function renderCuenta(){
         <div class="puja-msg" id="auth-msg"></div>
       </div>`;
     intentarPintarTurnstileCuenta();
+    if(authTab === "reg") activarBorrador("registro", ["auth-nombre","auth-tel","auth-email"], null);
     return;
   }
 
@@ -1236,7 +1246,8 @@ function renderCuenta(){
   } else if(sesionUsuario.estadoVerificacion === "pendiente" && !sesionUsuario.tieneIdentidad){
     estadoHtml = `
       <div class="kyc-box">
-        <p style="font-size:.85rem;color:#5c554a;margin-bottom:10px">Para pujar o publicar sus propios artículos, el rancho necesita verificar su identidad. Complete estos datos una sola vez.</p>
+        <p style="font-size:.85rem;color:#5c554a;margin-bottom:10px">Para pujar o publicar sus propios artículos, el rancho necesita verificar su identidad. Complete estos datos una sola vez. <b>Lo que escriba se va guardando solo</b>, así que puede salirse a buscar su documento y volver sin perder nada.</p>
+        <div id="kyc-aviso-borrador"></div>
         <div class="campo"><label>Número de identidad *</label><input id="kyc-identidad"></div>
         <div class="campo"><label>Fecha de nacimiento</label><input id="kyc-fecha-nacimiento" type="date"></div>
         <div class="campo"><label>Dirección actual *</label><input id="kyc-direccion"></div>
@@ -1250,8 +1261,8 @@ function renderCuenta(){
         <div class="campo"><label>Ocupación</label><input id="kyc-ocupacion" placeholder="¿A qué se dedica?"></div>
         <div class="campo"><label>Referencia personal — nombre</label><input id="kyc-ref-nombre" placeholder="Alguien que lo conozca"></div>
         <div class="campo"><label>Referencia personal — teléfono</label><input id="kyc-ref-telefono" placeholder="504..."></div>
-        <div class="campo"><label>Foto de identidad — frente *</label><input id="kyc-foto-frente" type="file" accept="image/*"></div>
-        <div class="campo"><label>Foto de identidad — dorso *</label><input id="kyc-foto-dorso" type="file" accept="image/*"></div>
+        <div class="campo"><label>Foto de identidad — frente *</label><input id="kyc-foto-frente" type="file" accept="image/*" onchange="subirFotoKyc('frente')"><div class="puja-msg" id="kyc-frente-estado"></div></div>
+        <div class="campo"><label>Foto de identidad — dorso *</label><input id="kyc-foto-dorso" type="file" accept="image/*" onchange="subirFotoKyc('dorso')"><div class="puja-msg" id="kyc-dorso-estado"></div></div>
         <button class="btn btn-fierro" id="btn-kyc" onclick="enviarKyc()">Enviar para revisión</button>
         <div class="puja-msg" id="kyc-msg"></div>
       </div>`;
@@ -1297,7 +1308,55 @@ function renderCuenta(){
     </div>`;
   cargarMfaEstadoCuenta();
   cargarMisCompras();
+
+  // Si en pantalla quedó el formulario de verificación, engancha
+  // el guardado automático y recupera lo escrito antes.
+  if(document.getElementById("kyc-identidad")){
+    activarBorrador("kyc", CAMPOS_KYC, "kyc-aviso-borrador");
+    pintarEstadoFotosKyc();
+  }
 }
+
+const CAMPOS_PUBLICACION = ["mp-tipo","mp-lote","mp-categoria-ganado","mp-peso","mp-edad","mp-estado-animal","mp-categoria-articulo","mp-nombre-articulo","mp-marca-modelo","mp-cantidad-unidad","mp-desc","mp-precio","mp-modo"];
+
+const CAMPOS_KYC = ["kyc-identidad","kyc-fecha-nacimiento","kyc-direccion","kyc-estado-civil","kyc-ocupacion","kyc-ref-nombre","kyc-ref-telefono"];
+
+/* Las fotos del documento se suben apenas se escogen, no hasta el
+   final. Así, si la persona se sale de la página, al volver la
+   foto ya está guardada y no tiene que volver a tomarla — los
+   navegadores no permiten rellenar un campo de archivo por
+   programa, así que esta es la única forma de no perderla. */
+function rutaFotoGuardada(cual){
+  try{ return localStorage.getItem(BORRADOR + "foto_" + cual) || null; }catch(e){ return null; }
+}
+
+function pintarEstadoFotosKyc(){
+  [["frente","kyc-frente-estado"],["dorso","kyc-dorso-estado"]].forEach(([cual, id]) => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(rutaFotoGuardada(cual)){
+      el.textContent = "✅ Foto guardada. Solo escoja otra si quiere reemplazarla.";
+      el.className = "puja-msg ok";
+    } else { el.textContent = ""; el.className = "puja-msg"; }
+  });
+}
+
+window.subirFotoKyc = async (cual) => {
+  const input = document.getElementById("kyc-foto-" + cual);
+  const estado = document.getElementById("kyc-" + cual + "-estado");
+  const archivo = input && input.files[0];
+  if(!archivo) return;
+  estado.textContent = "Subiendo la foto…"; estado.className = "puja-msg";
+  try{
+    const ruta = await subirArchivoPrivado("kyc-documentos", archivo, cual);
+    try{ localStorage.setItem(BORRADOR + "foto_" + cual, ruta); }catch(e){}
+    estado.textContent = "✅ Foto guardada.";
+    estado.className = "puja-msg ok";
+  }catch(e){
+    estado.textContent = "No se pudo subir la foto: " + e.message;
+    estado.className = "puja-msg err";
+  }
+};
 
 /* --- Mis compras: pagar por transferencia y seguir el estado --- */
 
@@ -1394,6 +1453,67 @@ window.hacerLogin = async () => {
   await refrescarSesion();
 };
 
+/* ===== BORRADORES: que nadie pierda lo que ya escribió =====
+   Todo lo que la persona escribe en un formulario largo se va
+   guardando solo en su propio teléfono. Si se sale de la página,
+   se le acaba la batería o se va a buscar su identidad, al volver
+   encuentra todo como lo dejó. Las contraseñas nunca se guardan.
+   Se borra cuando el formulario se envía con éxito.              */
+
+const BORRADOR = "rm_borrador_";
+
+function guardarBorrador(clave, campos){
+  try{
+    const datos = {};
+    campos.forEach(id => {
+      const el = document.getElementById(id);
+      if(el && el.type !== "file" && el.type !== "password") datos[id] = el.value;
+    });
+    localStorage.setItem(BORRADOR + clave, JSON.stringify(datos));
+  }catch(e){ /* navegador sin espacio o en modo privado: no pasa nada */ }
+}
+
+function restaurarBorrador(clave, campos){
+  try{
+    const crudo = localStorage.getItem(BORRADOR + clave);
+    if(!crudo) return false;
+    const datos = JSON.parse(crudo);
+    let recuperoAlgo = false;
+    campos.forEach(id => {
+      const el = document.getElementById(id);
+      if(el && datos[id] !== undefined && datos[id] !== ""){
+        el.value = datos[id];
+        if(el.type !== "hidden" && el.tagName !== "SELECT") recuperoAlgo = true;
+      }
+    });
+    return recuperoAlgo;
+  }catch(e){ return false; }
+}
+
+function borrarBorrador(clave){
+  try{ localStorage.removeItem(BORRADOR + clave); }catch(e){}
+}
+
+/* Engancha el guardado automático y devuelve true si había algo
+   guardado de antes. */
+function activarBorrador(clave, campos, idAviso){
+  const habia = restaurarBorrador(clave, campos);
+  campos.forEach(id => {
+    const el = document.getElementById(id);
+    if(!el || el.type === "file" || el.type === "password") return;
+    const guardar = () => guardarBorrador(clave, campos);
+    el.addEventListener("input", guardar);
+    el.addEventListener("change", guardar);
+  });
+  if(habia && idAviso){
+    const av = document.getElementById(idAviso);
+    if(av){
+      av.innerHTML = `<div class="puja-msg ok" style="margin-bottom:10px">Recuperamos lo que había escrito antes. Puede seguir donde se quedó.</div>`;
+    }
+  }
+  return habia;
+}
+
 /* Traduce a español los errores que Supabase devuelve en inglés,
    para que el comprador entienda qué le pasó. */
 function mensajeError(error){
@@ -1465,6 +1585,7 @@ window.hacerRegistro = async () => {
     return aviso("Ese correo ya tiene una cuenta. Entre con \"Ya tengo cuenta\" o toque \"¿Olvidó su contraseña?\".", "err");
   }
 
+  borrarBorrador("registro");
   if(data.session){
     // El aviso sobrevive al refresco de la pantalla.
     avisoCuenta = {
@@ -1479,7 +1600,13 @@ window.hacerRegistro = async () => {
   }
 };
 
-window.salirSesionVivo = async () => { await db.auth.signOut(); await refrescarSesion(); };
+window.salirSesionVivo = async () => {
+  // En un teléfono prestado, lo que escribió no debe quedar ahí.
+  ["kyc","registro","publicacion"].forEach(borrarBorrador);
+  try{ localStorage.removeItem(BORRADOR + "foto_frente"); localStorage.removeItem(BORRADOR + "foto_dorso"); }catch(e){}
+  await db.auth.signOut();
+  await refrescarSesion();
+};
 
 /* --- Olvidé mi contraseña --- */
 
@@ -1606,19 +1733,22 @@ window.enviarKyc = async () => {
   const ocupacion = document.getElementById("kyc-ocupacion").value.trim();
   const referenciaNombre = document.getElementById("kyc-ref-nombre").value.trim();
   const referenciaTelefono = document.getElementById("kyc-ref-telefono").value.trim();
-  const fotoFrente = document.getElementById("kyc-foto-frente").files[0];
-  const fotoDorso = document.getElementById("kyc-foto-dorso").files[0];
   const msgEl = document.getElementById("kyc-msg");
-  if(!identidad || !direccion || !estadoCivil || !fotoFrente || !fotoDorso){
-    msgEl.textContent = "Complete todos los campos obligatorios (*) y suba ambas fotos de su identidad.";
-    msgEl.className = "puja-msg err";
-    return;
-  }
+  const aviso = (t, tipo) => { msgEl.textContent = t; msgEl.className = "puja-msg " + tipo; msgEl.scrollIntoView({behavior:"smooth", block:"center"}); };
+
+  // Las fotos ya se subieron al escogerlas; aquí solo usamos su ruta.
+  const rutaFrente = rutaFotoGuardada("frente");
+  const rutaDorso = rutaFotoGuardada("dorso");
+
+  if(!identidad) return aviso("Escriba su número de identidad.", "err");
+  if(!direccion) return aviso("Escriba su dirección actual.", "err");
+  if(!estadoCivil) return aviso("Escoja su estado civil.", "err");
+  if(!rutaFrente) return aviso("Falta la foto del frente de su identidad.", "err");
+  if(!rutaDorso) return aviso("Falta la foto del dorso de su identidad.", "err");
+
   const btn = document.getElementById("btn-kyc");
   btn.disabled = true; btn.textContent = "Enviando…";
   try{
-    const rutaFrente = await subirArchivoPrivado("kyc-documentos", fotoFrente, "frente");
-    const rutaDorso = await subirArchivoPrivado("kyc-documentos", fotoDorso, "dorso");
     const {error} = await db.from("perfiles").update({
       identidad, direccion, estado_civil: estadoCivil,
       fecha_nacimiento: fechaNacimiento, ocupacion: ocupacion || null,
@@ -1626,10 +1756,13 @@ window.enviarKyc = async () => {
       foto_id_frente_url: rutaFrente, foto_id_dorso_url: rutaDorso
     }).eq("id", sesionUsuario.id);
     if(error) throw error;
+    // Enviado con éxito: ya no hace falta el borrador.
+    borrarBorrador("kyc");
+    try{ localStorage.removeItem(BORRADOR + "foto_frente"); localStorage.removeItem(BORRADOR + "foto_dorso"); }catch(e){}
+    avisoCuenta = {texto: "✅ Sus datos quedaron enviados. El rancho los revisa y le avisa por WhatsApp cuando su cuenta esté aprobada para pujar.", tipo: "ok"};
     await refrescarSesion();
   }catch(e){
-    msgEl.textContent = "Error: " + e.message;
-    msgEl.className = "puja-msg err";
+    aviso("Error: " + e.message, "err");
     btn.disabled = false; btn.textContent = "Enviar para revisión";
   }
 };
