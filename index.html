@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://ranchomorolica.com/logo.png">
 <meta name="twitter:card" content="summary_large_image">
 <!-- JSON-LD SEO -->
-<script type="application/ld+json">
+<script type="application/ld+json" id="ld-negocio">
 {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
@@ -384,12 +384,12 @@ footer a:hover{color:var(--fierro)}
       <div class="paso"><div class="num">3</div><h4>Puje y gane</h4><p>Presione el botón de pujar aquí en la página durante la transmisión, en tiempo real. Si gana el lote, coordinamos pago, guía de traslado y entrega.</p></div>
     </div>
     <div class="prox-subasta" id="prox-subasta-detalle">
-      <b>Próxima subasta:</b> <span id="subasta-info">Fecha por anunciar. Síganos en Facebook @ranchomorolicahn para el anuncio oficial.</span>
+      <b>Próxima subasta:</b> <span id="subasta-info">Fecha por anunciar. Síganos en nuestras redes para el anuncio oficial.</span>
     </div>
     <div class="sub-cta">
       <a class="btn btn-ws" id="ws-inscribir" href="#" target="_blank" rel="noopener">Inscribirme por WhatsApp</a>
       <a class="btn btn-linea" href="legal.html#reglamento">Ver el reglamento de la subasta</a>
-      <a class="btn btn-linea" href="https://www.facebook.com/ranchomorolicahn" target="_blank" rel="noopener">Seguir en Facebook</a>
+      <a class="btn btn-linea" id="red-fb-btn" href="#" target="_blank" rel="noopener">Seguir en Facebook</a>
     </div>
   </div>
 </section>
@@ -521,7 +521,7 @@ footer a:hover{color:var(--fierro)}
     <div class="ubi-datos" id="contacto">
       <span><b>Dirección:</b> Km 177, carretera a Catacamas, Juticalpa, Olancho</span>
       <span><b>WhatsApp:</b> <a id="tel-abajo" href="#">cargando…</a></span>
-      <span><b>Redes:</b> @ranchomorolicahn</span>
+      <span><b>Redes:</b> <span id="redes-usuario">—</span></span>
     </div>
   </div>
 </section>
@@ -549,9 +549,9 @@ footer a:hover{color:var(--fierro)}
     </div>
     <div>
       <h5>Síganos</h5>
-      <a href="https://www.facebook.com/ranchomorolicahn" target="_blank" rel="noopener">Facebook</a>
-      <a href="https://www.instagram.com/ranchomorolicahn" target="_blank" rel="noopener">Instagram</a>
-      <a href="https://www.tiktok.com/@ranchomorolicahn" target="_blank" rel="noopener">TikTok</a>
+      <a id="red-fb" href="#" target="_blank" rel="noopener">Facebook</a>
+      <a id="red-ig" href="#" target="_blank" rel="noopener">Instagram</a>
+      <a id="red-tt" href="#" target="_blank" rel="noopener">TikTok</a>
     </div>
     <div class="copy">© 1986–2026 Rancho Morolica. Todos los derechos reservados.</div>
   </div>
@@ -572,7 +572,16 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "sb_publishable_mKwvZz9rw4n0f30RBqbGFw_dwBBqSdw",   // Supabase → Settings → API → anon public
   WHATSAPP: "50432598724",                        // Su número: 504 + 8 dígitos, sin espacios
   WHATSAPP_MOSTRAR: "3259-8724",                  // Como se mostrará en pantalla
-  TURNSTILE_SITE_KEY: "PEGUE_AQUI_SU_SITE_KEY_DE_CLOUDFLARE_TURNSTILE"   // deje como está si todavía no lo configura
+  TURNSTILE_SITE_KEY: "PEGUE_AQUI_SU_SITE_KEY_DE_CLOUDFLARE_TURNSTILE",  // deje como está si todavía no lo configura
+
+  /* Redes sociales — pegue la dirección COMPLETA de cada perfil,
+     tal como sale en la barra del navegador cuando lo abre.
+     Si no tiene alguna red, déjela vacía ("") y el enlace
+     desaparece solo de la página.                              */
+  FACEBOOK:  "https://www.facebook.com/ranchomorolicahn",
+  INSTAGRAM: "https://www.instagram.com/ranchomorolicahn",
+  TIKTOK:    "https://www.tiktok.com/@ranchomorolicahn",
+  REDES_MOSTRAR: "@ranchomorolicahn"              // Como se muestra el usuario en pantalla
 };
 /* ============================================================ */
 
@@ -609,6 +618,35 @@ function ponerWhatsApps(){
   $("#tel-top").href = wsLink(base + "Quisiera más información.");
   $("#tel-abajo").textContent = CONFIG.WHATSAPP_MOSTRAR;
   $("#tel-abajo").href = wsLink(base + "Quisiera más información.");
+}
+
+/* Redes sociales: toma las direcciones de CONFIG. Si una quedó
+   vacía, ese enlace desaparece en vez de llevar a una página que
+   no existe. */
+function ponerRedes(){
+  const pares = [["#red-fb", CONFIG.FACEBOOK], ["#red-ig", CONFIG.INSTAGRAM], ["#red-tt", CONFIG.TIKTOK]];
+  pares.forEach(([sel, url]) => {
+    const el = $(sel);
+    if(!el) return;
+    if(url && url.trim()){ el.href = url.trim(); el.style.display = ""; }
+    else { el.style.display = "none"; }
+  });
+  const btnFb = $("#red-fb-btn");
+  if(btnFb){
+    if(CONFIG.FACEBOOK && CONFIG.FACEBOOK.trim()){ btnFb.href = CONFIG.FACEBOOK.trim(); btnFb.style.display = ""; }
+    else { btnFb.style.display = "none"; }
+  }
+  const usuario = $("#redes-usuario");
+  if(usuario) usuario.textContent = CONFIG.REDES_MOSTRAR || "—";
+  // Que Google también reciba las direcciones correctas.
+  const ld = $("#ld-negocio");
+  if(ld){
+    try{
+      const datos = JSON.parse(ld.textContent);
+      datos.sameAs = [CONFIG.FACEBOOK, CONFIG.INSTAGRAM, CONFIG.TIKTOK].filter(u => u && u.trim());
+      ld.textContent = JSON.stringify(datos);
+    }catch(e){ /* si el bloque no se puede leer, se deja como está */ }
+  }
 }
 
 function edadTxt(m){
@@ -951,7 +989,7 @@ window.borrarMiPublicacion = async (origen, id) => {
 };
 
 async function cargar(){
-  ponerWhatsApps(); pintarFiltros();
+  ponerWhatsApps(); ponerRedes(); pintarFiltros();
   try{
     if(CONFIG.SUPABASE_ANON_KEY.startsWith("PEGUE")) throw new Error("sin config");
     db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
