@@ -507,6 +507,94 @@ create table if not exists public.articulos_web (
 );
 alter table public.facturas add column if not exists articulo_id uuid references public.articulos_web(id);
 
+-- 9b-bis) Liquidación de la venta por transferencia bancaria —
+--   el mismo modelo de las subastas virtuales de Colombia
+--   (Koprix, Asoregan, Subastar): el comprador paga por
+--   transferencia, sube su comprobante, USTED confirma que el
+--   dinero llegó a su cuenta, se entrega el ganado, y al final se
+--   le liquida al vendedor consignatario su parte.
+--   IMPORTANTE: el dinero nunca pasa por la página web. La página
+--   solo lleva el control de en qué paso va cada venta, igual que
+--   un cuaderno, pero que el comprador también puede ver.
+alter table public.facturas add column if not exists estado_pago text not null default 'pendiente';
+alter table public.facturas add column if not exists comprobante_pago_url text;
+alter table public.facturas add column if not exists fecha_pago timestamptz;
+alter table public.facturas add column if not exists fecha_entrega timestamptz;
+alter table public.facturas add column if not exists fecha_liquidacion timestamptz;
+alter table public.facturas add column if not exists nota_pago text;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'facturas_estado_pago_check') then
+    alter table public.facturas add constraint facturas_estado_pago_check
+      check (estado_pago in ('pendiente','en_revision','pagado','entregado','liquidado'));
+  end if;
+end $$;
+
+-- El comprador sube el comprobante de su transferencia. No puede
+-- tocar ningún otro dato de la factura ni marcarse como pagado a
+-- sí mismo — eso solo lo hace usted.
+create or replace function public.subir_comprobante_pago(p_factura_id uuid, p_comprobante_url text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Debe iniciar sesión.';
+  end if;
+  if not public.verificacion_dos_pasos_ok() then
+    raise exception 'Complete el código de verificación en dos pasos.';
+  end if;
+  if coalesce(trim(p_comprobante_url), '') = '' then
+    raise exception 'Falta el comprobante.';
+  end if;
+  update public.facturas
+    set comprobante_pago_url = p_comprobante_url,
+        estado_pago = 'en_revision'
+    where id = p_factura_id
+      and comprador_id = auth.uid()
+      and estado_pago in ('pendiente','en_revision');
+  if not found then
+    raise exception 'Esa compra no existe, no le pertenece, o su pago ya fue confirmado.';
+  end if;
+end;
+$$;
+
+grant execute on function public.subir_comprobante_pago(uuid, text) to authenticated;
+
+-- Solo usted mueve la venta de un paso al siguiente:
+-- pendiente -> en_revision -> pagado -> entregado -> liquidado
+create or replace function public.avanzar_pago_factura(p_factura_id uuid, p_estado text, p_nota text default null)
+returns public.facturas
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_f public.facturas;
+begin
+  if not public.es_admin() then
+    raise exception 'Solo el administrador puede cambiar el estado de un pago.';
+  end if;
+  if p_estado not in ('pendiente','en_revision','pagado','entregado','liquidado') then
+    raise exception 'Estado inválido.';
+  end if;
+  update public.facturas
+    set estado_pago = p_estado,
+        nota_pago = coalesce(nullif(trim(p_nota), ''), nota_pago),
+        fecha_pago = case when p_estado in ('pagado','entregado','liquidado') then coalesce(fecha_pago, now()) else fecha_pago end,
+        fecha_entrega = case when p_estado in ('entregado','liquidado') then coalesce(fecha_entrega, now()) else fecha_entrega end,
+        fecha_liquidacion = case when p_estado = 'liquidado' then coalesce(fecha_liquidacion, now()) else fecha_liquidacion end
+    where id = p_factura_id
+    returning * into v_f;
+  if not found then
+    raise exception 'Factura no encontrada.';
+  end if;
+  return v_f;
+end;
+$$;
+
+grant execute on function public.avanzar_pago_factura(uuid, text, text) to authenticated;
+
 -- 9c) Modo de venta: precio fijo directo (como hasta ahora), o que
 --     el comprador pueda "Hacer oferta" (estilo eBay). La subasta
 --     en vivo ya es su propio modo, separado (subasta_lotes).

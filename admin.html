@@ -304,6 +304,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <div id="lista-compradores" style="margin-top:14px"></div>
   </div>
 
+  <!-- PAGOS Y LIQUIDACIÓN -->
+  <div class="tarjeta oculto-sec" id="sec-pagos">
+    <h2>Pagos y liquidación (<span id="total-pagos-pend">0</span> por cobrar)</h2>
+    <p style="font-size:.85rem;color:#7a7263;margin-bottom:10px">Cada venta pasa por estos pasos: <b>Pendiente</b> (el comprador aún no paga) → <b>En revisión</b> (subió su comprobante) → <b>Pagado</b> (usted confirmó que el dinero llegó) → <b>Entregado</b> (se entregó el ganado) → <b>Liquidado</b> (ya le pagó al vendedor consignatario). El comprador ve el mismo estado desde su cuenta.</p>
+    <div id="lista-pagos"></div>
+  </div>
+
   <!-- INFORME DE VENTAS -->
   <div class="tarjeta oculto-sec" id="sec-ventas">
     <h2>Informe de ventas mensual</h2>
@@ -335,7 +342,7 @@ const db = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const msg = (el, texto, tipo) => { const m=$(el); m.textContent=texto; m.className="msg "+tipo; setTimeout(()=>m.className="msg",4000); };
 
-const SECCIONES_ADMIN = ["#sec-seguridad","#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-moderacion","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-ventas"];
+const SECCIONES_ADMIN = ["#sec-seguridad","#sec-config","#sec-form","#sec-subasta","#sec-vivo","#sec-lista","#sec-articulos","#sec-moderacion","#sec-ofertas","#sec-verificacion","#sec-depositos","#sec-vendedores","#sec-compradores","#sec-pagos","#sec-ventas"];
 
 /* ===== "NO SOY UN ROBOT" (Cloudflare Turnstile) — opcional ===== */
 let turnstileTokenLogin = null;
@@ -394,6 +401,7 @@ async function sesion(){
     await cargarCompradores();
     await cargarVerificacion();
     await cargarDepositos();
+    await cargarPagos();
     await cargarVentas();
   }
 }
@@ -1245,6 +1253,71 @@ $("#btn-csv-compradores").onclick = () => {
     estado_verificacion: p.estado_verificacion, deposito_pagado: p.deposito_pagado?"si":"no",
     bloqueado: p.bloqueado?"si":"no"
   })));
+};
+
+/* ===== PAGOS Y LIQUIDACIÓN ===== */
+
+const PASOS_PAGO = ["pendiente","en_revision","pagado","entregado","liquidado"];
+const ETIQUETA_PAGO = {
+  pendiente:"Pendiente de pago", en_revision:"Comprobante en revisión",
+  pagado:"Pagado", entregado:"Entregado", liquidado:"Liquidado al vendedor"
+};
+const SIGUIENTE_PASO = {
+  pendiente:["pagado","Marcar pagado"],
+  en_revision:["pagado","Confirmar pago"],
+  pagado:["entregado","Marcar entregado"],
+  entregado:["liquidado","Marcar liquidado"]
+};
+
+async function cargarPagos(){
+  const {data} = await db.from("facturas").select("*").order("created_at",{ascending:false});
+  const facturas = data || [];
+  window._pagos = facturas;
+  const abiertas = facturas.filter(f => (f.estado_pago||"pendiente") !== "liquidado");
+  $("#total-pagos-pend").textContent = facturas.filter(f => ["pendiente","en_revision"].includes(f.estado_pago||"pendiente")).length;
+  if(!abiertas.length){
+    $("#lista-pagos").innerHTML = "<p style='color:#7a7263'>No hay ventas pendientes de cobro o liquidación.</p>";
+    return;
+  }
+  $("#lista-pagos").innerHTML = abiertas.map(f => {
+    const estado = f.estado_pago || "pendiente";
+    const vendedor = (window._vendedores||[]).find(v=>String(v.id_vendedor)===String(f.vendedor_id));
+    const alVendedor = Number(f.monto_lps) - Number(f.comision_lps||0);
+    const sig = SIGUIENTE_PASO[estado];
+    return `<div class="lista-item">
+      <div class="mini">#${f.numero}</div>
+      <div class="li-info">
+        <b>${f.comprador_nombre}</b>
+        L ${Number(f.monto_lps).toLocaleString("es-HN")} · Comisión L ${Number(f.comision_lps||0).toLocaleString("es-HN")}<br>
+        ${vendedor ? `Al vendedor ${vendedor.nombre_vendedor}: <b>L ${alVendedor.toLocaleString("es-HN")}</b><br>` : ""}
+        <span class="pill ${estado==='liquidado'?'pub':estado==='pendiente'?'vend':'oculto'}">${ETIQUETA_PAGO[estado]}</span>
+        ${f.nota_pago ? `<br><span style="color:#7a7263">${f.nota_pago}</span>` : ""}
+        <div class="contactos">
+          ${f.comprador_telefono ? `<a href="tel:${f.comprador_telefono}" title="Llamar">📞</a><a href="https://wa.me/${f.comprador_telefono.replace(/\D/g,'')}" target="_blank" title="WhatsApp">💬</a>` : ""}
+        </div>
+      </div>
+      <div class="li-acciones">
+        ${f.comprobante_pago_url ? `<button class="btn btn-chico btn-gris" onclick="verComprobantePago('${f.id}')">Ver comprobante</button>` : ""}
+        ${sig ? `<button class="btn btn-chico btn-v" onclick="avanzarPago('${f.id}','${sig[0]}')">${sig[1]}</button>` : ""}
+        <button class="btn btn-chico btn-gris" onclick="window.open('factura.html?id=${f.id}','_blank')">Factura</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.verComprobantePago = async (id) => {
+  const f = (window._pagos||[]).find(x=>x.id===id);
+  if(!f) return;
+  const url = await urlPrivada("comprobantes-deposito", f.comprobante_pago_url);
+  if(url) window.open(url, "_blank"); else alert("No se encontró el comprobante.");
+};
+
+window.avanzarPago = async (id, estado) => {
+  let nota = null;
+  if(estado === "liquidado") nota = prompt("Nota de la liquidación (opcional): forma de pago, número de referencia…", "") || null;
+  const {error} = await db.rpc("avanzar_pago_factura", {p_factura_id:id, p_estado:estado, p_nota:nota});
+  if(error) return alert("Error: " + error.message);
+  await cargarPagos(); await cargarVentas();
 };
 
 /* ===== INFORME DE VENTAS ===== */

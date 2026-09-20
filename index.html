@@ -1219,12 +1219,63 @@ function renderCuenta(){
   cont.innerHTML = `
     <div class="pujando-como"><span>Cuenta: <b>${sesionUsuario.nombre}</b></span><button onclick="salirSesionVivo()">Cerrar sesión</button></div>
     ${estadoHtml}
+    <div id="mis-compras" style="margin-top:16px"></div>
     <div class="kyc-box" id="cta-2fa-box" style="margin-top:16px">
       <h4 style="color:var(--monte);margin-bottom:8px">Verificación en dos pasos</h4>
       <div id="cta-2fa-estado"></div>
     </div>`;
   cargarMfaEstadoCuenta();
+  cargarMisCompras();
 }
+
+/* --- Mis compras: pagar por transferencia y seguir el estado --- */
+
+const ETIQUETA_PAGO = {
+  pendiente:"Pendiente de pago", en_revision:"Su comprobante está en revisión",
+  pagado:"Pago confirmado", entregado:"Entregado", liquidado:"Cerrada"
+};
+
+async function cargarMisCompras(){
+  const cont = document.getElementById("mis-compras");
+  if(!cont || !sesionUsuario) return;
+  const {data} = await db.from("facturas").select("*")
+    .eq("comprador_id", sesionUsuario.id).order("created_at",{ascending:false});
+  const compras = data || [];
+  if(!compras.length){ cont.innerHTML = ""; return; }
+  cont.innerHTML = `<div class="mis-ofertas"><h4>Mis compras</h4>` + compras.map(f => {
+    const estado = f.estado_pago || "pendiente";
+    return `<div class="fila-oferta" style="display:block">
+      <div>Factura #${f.numero} — <b>${fmtL(f.monto_lps)}</b> · ${ETIQUETA_PAGO[estado]}</div>
+      ${estado === "pendiente" ? `
+        <div style="margin-top:8px;font-size:.85rem;color:#5c554a">
+          Deposite o transfiera <b>${fmtL(f.monto_lps)}</b> a:
+          <pre style="white-space:pre-wrap;margin:6px 0">${configSitio.datos_bancarios || "Pregunte al rancho por los datos bancarios."}</pre>
+          Luego suba aquí la foto de su comprobante:
+        </div>
+        <input type="file" accept="image/*" id="pago-foto-${f.id}" style="margin-top:6px">
+        <button class="btn btn-fierro" style="margin-top:6px" onclick="enviarComprobantePago('${f.id}')">Enviar comprobante</button>
+        <div class="puja-msg" id="pago-msg-${f.id}"></div>
+      ` : ""}
+      ${f.nota_pago ? `<div style="font-size:.82rem;color:#7a7263;margin-top:4px">${f.nota_pago}</div>` : ""}
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+window.enviarComprobantePago = async (facturaId) => {
+  const msgEl = document.getElementById("pago-msg-"+facturaId);
+  const foto = document.getElementById("pago-foto-"+facturaId).files[0];
+  if(!foto){ msgEl.textContent = "Escoja la foto de su comprobante."; msgEl.className = "puja-msg err"; return; }
+  msgEl.textContent = "Enviando…"; msgEl.className = "puja-msg";
+  try{
+    const ruta = await subirArchivoPrivado("comprobantes-deposito", foto, "pago-"+facturaId);
+    const {error} = await db.rpc("subir_comprobante_pago", {p_factura_id: facturaId, p_comprobante_url: ruta});
+    if(error) throw error;
+    await cargarMisCompras();
+  }catch(e){
+    msgEl.textContent = "Error: " + e.message;
+    msgEl.className = "puja-msg err";
+  }
+};
 
 window.mostrarAuthTab = t => { authTab = t; renderCuenta(); };
 

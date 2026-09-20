@@ -100,6 +100,28 @@ Después de ser aprobado, la página le muestra al comprador el monto del depós
 2. Cuando un comprador suba su comprobante, aparecerá en `/admin.html` → **"Depósitos de garantía"**. Verifique que el dinero llegó a su cuenta y presione **"Ver comprobante"** para confirmar el monto.
 3. Presione **"Aprobar"** — recién ahí ese comprador puede pujar. Si algo no cuadra, presione **"Rechazar"** con el motivo.
 
+## Cobro de la venta y liquidación al vendedor (modelo de las subastas virtuales)
+
+Es el mismo esquema que usan las subastas ganaderas 100% virtuales de Colombia (Koprix, Asoregan, Subastar): **nadie paga con tarjeta, todo es por transferencia bancaria, y la página lleva el control de en qué paso va cada venta.** El dinero nunca pasa por la página web — llega a su cuenta, como siempre.
+
+Cada venta (de subasta o de catálogo) genera su factura y recorre estos cinco pasos:
+
+| Paso | Qué significa | Quién lo hace |
+|---|---|---|
+| **Pendiente** | El comprador aún no paga | — |
+| **En revisión** | El comprador subió su comprobante de transferencia | El comprador, desde "Mi cuenta" |
+| **Pagado** | Usted confirmó que el dinero llegó a su cuenta | Usted |
+| **Entregado** | Ya se entregó el ganado | Usted |
+| **Liquidado** | Ya le pagó su parte al vendedor consignatario | Usted |
+
+1. Configure sus datos bancarios una sola vez en `/admin.html` → **"Configuración del sitio"**. Son los que se le muestran al comprador.
+2. El comprador entra a la página → **"Mi cuenta"** → **"Mis compras"**. Ahí ve lo que debe, los datos bancarios para transferir, y sube la foto de su comprobante.
+3. A usted le aparece en `/admin.html` → **"Pagos y liquidación"**, con un contador de cuántas ventas están por cobrar. Presione **"Ver comprobante"**, confirme en su banco que el dinero llegó, y vaya avanzando los pasos con los botones.
+4. En cada venta la página le calcula sola **cuánto le toca al vendedor consignatario** (monto menos su comisión), para que no tenga que sacar la cuenta a mano.
+5. El comprador ve el mismo estado desde su cuenta en todo momento, así que deja de tener que avisarle por WhatsApp a cada rato.
+
+⚠️ Lo que este flujo **no** hace es retener el dinero en custodia como hace Koprix (que guarda el pago del comprador hasta que ambos confirmen la entrega). Eso implica manejar dinero de terceros y tiene requisitos legales serios en Honduras — conviene consultarlo con su abogado antes de ofrecerlo.
+
 ## Verificación en dos pasos (2FA) — para usted y para sus compradores/vendedores
 
 Ahora, además de la contraseña, cualquier cuenta (la suya de administrador, o la de un comprador/vendedor) puede activar un segundo paso: un código de 6 dígitos que cambia cada 30 segundos, generado por una app en su teléfono (Google Authenticator, Authy, o cualquiera similar — son gratis). Es **opcional por cuenta** — nadie queda obligado si no lo activa, pero quien sí lo activa, ya no puede entrar solo con la contraseña, ni siquiera si alguien más la adivina o la roba.
