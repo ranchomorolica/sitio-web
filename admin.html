@@ -62,7 +62,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <label>Contraseña</label><input id="log-pass" type="password" autocomplete="current-password">
     <div id="log-turnstile" style="margin-top:10px"></div>
     <button class="btn btn-v" id="btn-entrar">Entrar</button>
+    <p style="font-size:.85rem;margin-top:10px"><a href="#" id="link-recuperar" style="color:var(--cuero)">¿Olvidó su contraseña?</a></p>
     <div class="msg" id="log-msg"></div>
+  </div>
+
+  <!-- CONTRASEÑA NUEVA (tras el enlace del correo) -->
+  <div class="tarjeta" id="sec-pass-nueva" style="display:none">
+    <h2>Escriba su contraseña nueva</h2>
+    <label>Contraseña nueva (mínimo 6 caracteres)</label><input id="pass-nueva" type="password" autocomplete="new-password">
+    <button class="btn btn-v" id="btn-pass-nueva">Guardar contraseña</button>
+    <div class="msg" id="pass-nueva-msg"></div>
   </div>
 
   <!-- SEGUNDO PASO (2FA) AL INICIAR SESIÓN -->
@@ -361,9 +370,21 @@ const _turnstileTimer = setInterval(() => {
   if(typeof turnstile !== "undefined"){ intentarPintarTurnstile(); clearInterval(_turnstileTimer); }
 }, 300);
 
+let recuperandoPass = false;
+
 function mostrarLogin(){
   $("#sec-login").style.display = "block";
   $("#sec-mfa-reto").style.display = "none";
+  $("#sec-pass-nueva").style.display = "none";
+  $("#sec-no-admin").style.display = "none";
+  SECCIONES_ADMIN.forEach(s=>$(s).style.display = "none");
+  $("#btn-salir").style.display = "none";
+}
+
+function mostrarPassNueva(){
+  $("#sec-login").style.display = "none";
+  $("#sec-mfa-reto").style.display = "none";
+  $("#sec-pass-nueva").style.display = "block";
   $("#sec-no-admin").style.display = "none";
   SECCIONES_ADMIN.forEach(s=>$(s).style.display = "none");
   $("#btn-salir").style.display = "none";
@@ -378,12 +399,14 @@ function mostrarRetoMfa(){
 }
 
 async function sesion(){
+  if(recuperandoPass){ mostrarPassNueva(); return; }
   const {data:{session}} = await db.auth.getSession();
   if(!session){ mostrarLogin(); return; }
   const {data:aal} = await db.auth.mfa.getAuthenticatorAssuranceLevel();
   if(aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2"){ mostrarRetoMfa(); return; }
   $("#sec-login").style.display = "none";
   $("#sec-mfa-reto").style.display = "none";
+  $("#sec-pass-nueva").style.display = "none";
   $("#btn-salir").style.display = "block";
   const {data:perfil} = await db.from("perfiles").select("es_admin").eq("id", session.user.id).maybeSingle();
   const esAdmin = !!(perfil && perfil.es_admin);
@@ -1356,6 +1379,29 @@ $("#btn-csv-ventas").onclick = () => {
     comprador: f.comprador_nombre, telefono: f.comprador_telefono||"",
     monto_lps: f.monto_lps, comision_pct: f.comision_pct, comision_lps: f.comision_lps
   })));
+};
+
+db.auth.onAuthStateChange((evento) => {
+  if(evento === "PASSWORD_RECOVERY"){ recuperandoPass = true; sesion(); }
+});
+
+$("#link-recuperar").onclick = async (ev) => {
+  ev.preventDefault();
+  const correo = $("#log-email").value.trim() || (prompt("¿Cuál es el correo de su cuenta de administrador?", "") || "").trim();
+  if(!correo) return msg("#log-msg","Escriba su correo arriba y vuelva a tocar el enlace.","err");
+  const {error} = await db.auth.resetPasswordForEmail(correo, { redirectTo: window.location.origin + window.location.pathname });
+  msg("#log-msg", error ? ("No se pudo enviar: " + error.message) : "Le mandamos el enlace a su correo. Revise también la carpeta de spam.", error ? "err" : "ok");
+};
+
+$("#btn-pass-nueva").onclick = async () => {
+  const pass = $("#pass-nueva").value;
+  if(!pass || pass.length < 6) return msg("#pass-nueva-msg","La contraseña debe tener al menos 6 caracteres.","err");
+  const {error} = await db.auth.updateUser({ password: pass });
+  if(error) return msg("#pass-nueva-msg","No se pudo cambiar: " + error.message,"err");
+  recuperandoPass = false;
+  msg("#pass-nueva-msg","¡Contraseña cambiada!","ok");
+  $("#pass-nueva").value = "";
+  sesion();
 };
 
 sesion();
