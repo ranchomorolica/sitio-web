@@ -122,6 +122,28 @@ Cada venta (de subasta o de catálogo) genera su factura y recorre estos cinco p
 
 ⚠️ Lo que este flujo **no** hace es retener el dinero en custodia como hace Koprix (que guarda el pago del comprador hasta que ambos confirmen la entrega). Eso implica manejar dinero de terceros y tiene requisitos legales serios en Honduras — conviene consultarlo con su abogado antes de ofrecerlo.
 
+## Cupo de compra: el candado que evita que alguien puje más de lo que puede pagar
+
+Es lo que usan las subastas colombianas y era el hueco más grande que tenía: con solo L10,000 de depósito, alguien podía adjudicarse L800,000 y arrepentirse.
+
+**Cómo funciona.** Cada comprador tiene un tope de cuánto puede llegar a deber a la vez. La página lleva la cuenta sola, sumando sus facturas sin pagar más lo que va ganando en los lotes que están en vivo. Cuando intenta pujar por encima de su tope, la puja **se rechaza en la base de datos** — no en la pantalla, así que no hay forma de saltárselo.
+
+1. En `/admin.html` → **"Configuración del sitio"** ponga el **cupo por defecto** (viene en L50,000). Ese aplica a todo comprador nuevo.
+2. A un comprador de confianza súbaselo: `/admin.html` → **"Directorio de compradores"** → botón **"Cupo"** → escriba el monto. Si lo deja vacío, usa el general.
+3. El comprador ve su cupo disponible en **"Mi cuenta"**, y le baja conforme va ganando lotes.
+
+## Plazo para pagar, y ventas vencidas
+
+En **"Configuración del sitio"** define de cuántas horas es el plazo (viene en 48, que es el estándar de las subastas colombianas). A partir de ahí:
+
+- El comprador ve en **"Mis compras"** la fecha y hora exacta hasta la que tiene plazo. Si se le pasa, le sale en rojo.
+- Usted ve en **"Pagos y liquidación"** una etiqueta **VENCIDA** sobre cada venta que pasó del plazo.
+- Como esa factura sigue contando contra el cupo del comprador, mientras no pague no puede seguir pujando. Se cobra solo.
+
+## Anular una puja mal registrada
+
+Pasa seguido en el ruedo: se teclea un monto equivocado, o el comprador presencial se retracta antes de que caiga el martillo. Mientras el lote está **en vivo**, hay un botón **"Anular última puja"** tanto en `/admin.html` (sección de lotes) como en `ruedo.html`. Borra la última puja y deja el lote en el precio y el ganador que tenía antes. Solo funciona con su cuenta de administrador, y solo mientras el lote no se haya cerrado.
+
 ## Verificación en dos pasos (2FA) — para usted y para sus compradores/vendedores
 
 Ahora, además de la contraseña, cualquier cuenta (la suya de administrador, o la de un comprador/vendedor) puede activar un segundo paso: un código de 6 dígitos que cambia cada 30 segundos, generado por una app en su teléfono (Google Authenticator, Authy, o cualquiera similar — son gratis). Es **opcional por cuenta** — nadie queda obligado si no lo activa, pero quien sí lo activa, ya no puede entrar solo con la contraseña, ni siquiera si alguien más la adivina o la roba.

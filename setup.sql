@@ -45,6 +45,9 @@ create table if not exists public.config_sitio (
 );
 insert into public.config_sitio (id) values (true) on conflict (id) do nothing;
 alter table public.config_sitio add column if not exists comision_marketplace_pct numeric not null default 5;
+-- Cupo de compra por defecto y plazo para pagar una venta.
+alter table public.config_sitio add column if not exists cupo_default_lps numeric not null default 50000;
+alter table public.config_sitio add column if not exists plazo_pago_horas int not null default 48;
 
 -- 4) Perfiles: un registro por cada usuario de Supabase Auth.
 --    Distingue al administrador (usted) de los compradores que
@@ -72,6 +75,9 @@ alter table public.perfiles add column if not exists fecha_nacimiento date;
 alter table public.perfiles add column if not exists ocupacion text;
 alter table public.perfiles add column if not exists referencia_nombre text;
 alter table public.perfiles add column if not exists referencia_telefono text;
+-- Cupo de compra de ESTE comprador. Vacío = se usa el general de
+-- config_sitio. Solo el admin lo puede cambiar (ver el trigger).
+alter table public.perfiles add column if not exists cupo_compra_lps numeric;
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'perfiles_estado_verificacion_check') then
@@ -319,6 +325,37 @@ alter table public.pujas alter column comprador_id drop not null;
 alter table public.pujas add column if not exists es_presencial boolean not null default false;
 alter table public.pujas add column if not exists registrada_por uuid references auth.users(id);
 
+-- Cupo de compra: cuánto puede llegar a deber un comprador antes
+-- de que el rancho le exija ponerse al día. Es el candado que usan
+-- las subastas colombianas y el que evita que alguien con L10,000
+-- de depósito se adjudique L800,000 y luego se arrepienta.
+-- Cuenta lo que ya debe en facturas sin pagar MÁS lo que va
+-- ganando en lotes que siguen en vivo.
+create or replace function public.cupo_disponible(p_comprador uuid)
+returns numeric
+language sql stable
+security definer set search_path = public
+as $$
+  select greatest(
+    coalesce(
+      (select cupo_compra_lps from public.perfiles where id = p_comprador),
+      (select cupo_default_lps from public.config_sitio where id = true),
+      0
+    )
+    - coalesce((
+        select sum(monto_lps) from public.facturas
+        where comprador_id = p_comprador
+          and coalesce(estado_pago, 'pendiente') in ('pendiente','en_revision')
+      ), 0)
+    - coalesce((
+        select sum(coalesce(precio_actual, 0)) from public.subasta_lotes
+        where ganador_id = p_comprador and estado = 'en_vivo'
+      ), 0),
+  0);
+$$;
+
+grant execute on function public.cupo_disponible(uuid) to authenticated;
+
 -- Función que registra una puja EN LÍNEA de forma segura: valida
 -- el monto contra el precio actual dentro de la misma transacción
 -- (evita que dos compradores "ganen" el mismo instante), exige que
@@ -333,6 +370,8 @@ declare
   v_lote public.subasta_lotes;
   v_perfil public.perfiles;
   v_minimo numeric;
+  v_cupo numeric;
+  v_ya_en_lote numeric;
 begin
   if auth.uid() is null then
     raise exception 'Debe iniciar sesión para pujar.';
@@ -363,6 +402,14 @@ begin
   v_minimo := coalesce(v_lote.precio_actual, v_lote.precio_salida - v_lote.incremento) + v_lote.incremento;
   if p_monto < v_minimo then
     raise exception 'La puja mínima ahora es L %', v_minimo;
+  end if;
+
+  -- Cupo de compra. Si ya va ganando este mismo lote, solo cuenta
+  -- lo que sube por encima de su propia puja, no el total otra vez.
+  v_ya_en_lote := case when v_lote.ganador_id = auth.uid() then coalesce(v_lote.precio_actual, 0) else 0 end;
+  v_cupo := public.cupo_disponible(auth.uid()) + v_ya_en_lote;
+  if p_monto > v_cupo then
+    raise exception 'Esta puja pasa de su cupo de compra disponible (L %). Pague lo que tiene pendiente o pida al rancho que se lo amplíe.', round(v_cupo);
   end if;
 
   insert into public.pujas (lote_id, comprador_id, comprador_nombre, monto)
@@ -424,6 +471,60 @@ end;
 $$;
 
 grant execute on function public.hacer_puja_fisica(uuid, numeric, text) to authenticated;
+
+-- Anular la última puja de un lote. Pasa seguido en el ruedo: el
+-- rematador registra un monto equivocado, o un comprador presencial
+-- se retracta antes de que caiga el martillo. Borra la última puja
+-- y deja el lote en el precio y el ganador que tenía antes.
+create or replace function public.anular_ultima_puja(p_lote_id uuid)
+returns public.subasta_lotes
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_lote public.subasta_lotes;
+  v_ultima_id uuid;
+  v_anterior public.pujas;
+begin
+  if not public.es_admin() then
+    raise exception 'Solo el administrador puede anular una puja.';
+  end if;
+
+  select * into v_lote from public.subasta_lotes where id = p_lote_id for update;
+  if not found then
+    raise exception 'Lote no encontrado.';
+  end if;
+  if v_lote.estado <> 'en_vivo' then
+    raise exception 'Solo se puede anular una puja mientras el lote está en vivo.';
+  end if;
+
+  select id into v_ultima_id from public.pujas
+    where lote_id = p_lote_id
+    order by created_at desc, id desc
+    limit 1;
+  if v_ultima_id is null then
+    raise exception 'Ese lote todavía no tiene pujas que anular.';
+  end if;
+
+  delete from public.pujas where id = v_ultima_id;
+
+  select * into v_anterior from public.pujas
+    where lote_id = p_lote_id
+    order by created_at desc, id desc
+    limit 1;
+
+  update public.subasta_lotes
+    set precio_actual  = v_anterior.monto,
+        ganador_id     = v_anterior.comprador_id,
+        ganador_nombre = v_anterior.comprador_nombre
+    where id = p_lote_id
+    returning * into v_lote;
+
+  return v_lote;
+end;
+$$;
+
+grant execute on function public.anular_ultima_puja(uuid) to authenticated;
 
 -- 8) Depósitos de garantía (L10,000 por defecto — ver
 --    config_sitio). El comprador sube su comprobante de
@@ -1004,6 +1105,7 @@ begin
     new.es_admin := old.es_admin;
     new.bloqueado := old.bloqueado;
     new.deposito_pagado := old.deposito_pagado;
+    new.cupo_compra_lps := old.cupo_compra_lps;
     -- Única excepción: al comprador al que le rechazaron sus datos
     -- se le permite corregirlos y volver a ponerlos en la cola de
     -- revisión (rechazado -> pendiente). Nunca puede aprobarse a

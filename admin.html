@@ -106,6 +106,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fierro)}
     <input id="c-deposito" type="number" inputmode="numeric">
     <label>Datos bancarios para el depósito (se muestran al comprador)</label>
     <textarea id="c-datos-bancarios" rows="3" placeholder="Banco, número de cuenta, nombre del titular…"></textarea>
+    <label>Cupo de compra por defecto (Lempiras)</label>
+    <input id="c-cupo" type="number" inputmode="numeric" placeholder="50000">
+    <p style="font-size:.8rem;color:#7a7263;margin-top:4px">Lo máximo que un comprador puede llegar a deber antes de que la página le impida seguir pujando. A cada comprador le puede poner un cupo distinto desde el directorio.</p>
+    <label>Plazo para pagar una venta (horas)</label>
+    <input id="c-plazo" type="number" inputmode="numeric" placeholder="48">
     <label>Comisión de mercado — publicaciones de usuarios (%)</label>
     <input id="c-comision-mercado" type="number" step="0.1" placeholder="5">
     <p style="font-size:.8rem;color:#7a7263;margin-top:4px">Se calcula sola cuando un usuario marca su propia publicación como vendida (distinta a la comisión de los vendedores consignatarios).</p>
@@ -909,7 +914,7 @@ async function cargarLotesAdmin(){
       </div>
       <div class="li-acciones">
         ${l.estado==='pendiente' ? `<button class="btn btn-chico btn-f" onclick="ponerEnVivo('${l.id}')">Poner en vivo</button>` : ""}
-        ${l.estado==='en_vivo' ? `<button class="btn btn-chico btn-v" onclick="cerrarLote('${l.id}',true)">Vendido</button><button class="btn btn-chico btn-gris" onclick="cerrarLote('${l.id}',false)">Cerrar sin venta</button>` : ""}
+        ${l.estado==='en_vivo' ? `<button class="btn btn-chico btn-v" onclick="cerrarLote('${l.id}',true)">Vendido</button><button class="btn btn-chico btn-rojo" onclick="anularPuja('${l.id}')">Anular última puja</button><button class="btn btn-chico btn-gris" onclick="cerrarLote('${l.id}',false)">Cerrar sin venta</button>` : ""}
         <button class="btn btn-chico btn-gris" onclick="editarLote('${l.id}')">Editar</button>
         <button class="btn btn-chico btn-rojo" onclick="borrarLote('${l.id}')">Borrar</button>
       </div>
@@ -920,6 +925,13 @@ async function cargarLotesAdmin(){
 window.ponerEnVivo = async (id) => {
   await db.from("subasta_lotes").update({estado:"pendiente"}).eq("subasta_id", subastaIdActual).eq("estado","en_vivo");
   await db.from("subasta_lotes").update({estado:"en_vivo"}).eq("id", id);
+  cargarLotesAdmin();
+};
+
+window.anularPuja = async (id) => {
+  if(!confirm("¿Anular la última puja de este lote?\n\nEl precio vuelve al que tenía antes. Esto no se puede deshacer.")) return;
+  const {error} = await db.rpc("anular_ultima_puja", {p_lote_id: id});
+  if(error) return alert("Error: " + error.message);
   cargarLotesAdmin();
 };
 
@@ -1002,11 +1014,14 @@ $("#btn-guardar-lote").onclick = async () => {
 
 async function cargarConfig(){
   const {data} = await db.from("config_sitio").select("*").maybeSingle();
+  window._config = data || {};
   if(data){
     $("#c-tipo-cambio").value = data.tipo_cambio_lps_por_usd;
     $("#c-deposito").value = data.deposito_garantia_lps;
     $("#c-datos-bancarios").value = data.datos_bancarios;
     $("#c-comision-mercado").value = data.comision_marketplace_pct ?? 5;
+    $("#c-cupo").value = data.cupo_default_lps ?? 50000;
+    $("#c-plazo").value = data.plazo_pago_horas ?? 48;
   }
 }
 
@@ -1016,6 +1031,8 @@ $("#btn-config").onclick = async () => {
     deposito_garantia_lps: Number($("#c-deposito").value) || 10000,
     datos_bancarios: $("#c-datos-bancarios").value.trim(),
     comision_marketplace_pct: Number($("#c-comision-mercado").value) || 0,
+    cupo_default_lps: Number($("#c-cupo").value) || 0,
+    plazo_pago_horas: Number($("#c-plazo").value) || 48,
     updated_at: new Date().toISOString()
   };
   const {error} = await db.from("config_sitio").update(reg).eq("id", true);
@@ -1280,6 +1297,7 @@ async function cargarCompradores(){
         <span class="pill ${p.estado_verificacion==='aprobado'?'pub':p.estado_verificacion==='rechazado'?'vend':'oculto'}">${p.estado_verificacion}</span>
         <span class="pill ${p.deposito_pagado?'pub':'oculto'}">${p.deposito_pagado?'Depósito OK':'Sin depósito'}</span>
         <span class="pill ${p.bloqueado?'vend':'pub'}">${p.bloqueado?'Bloqueado':'Activo'}</span>
+        <span class="pill oculto">Cupo: ${p.cupo_compra_lps ? "L "+Number(p.cupo_compra_lps).toLocaleString("es-HN") : "el general"}</span>
         <div class="contactos">
           ${p.telefono ? `<a href="tel:${p.telefono}" title="Llamar">📞</a><a href="https://wa.me/${p.telefono.replace(/\D/g,'')}" target="_blank" title="WhatsApp">💬</a>` : ""}
           ${p.correo ? `<a href="mailto:${p.correo}" title="Correo">✉️</a>` : ""}
@@ -1287,10 +1305,23 @@ async function cargarCompradores(){
       </div>
       <div class="li-acciones">
         <button class="btn btn-chico btn-gris" onclick="verDocumentos('${p.id}')">Ver ID</button>
+        <button class="btn btn-chico btn-f" onclick="cambiarCupo('${p.id}')">Cupo</button>
         <button class="btn btn-chico ${p.bloqueado?'btn-v':'btn-rojo'}" onclick="toggleBloqueo('${p.id}', ${!p.bloqueado})">${p.bloqueado?'Desbloquear':'Bloquear'}</button>
       </div>
     </div>`).join("") || "<p style='color:#7a7263'>Aún no hay compradores registrados.</p>";
 }
+
+window.cambiarCupo = async (id) => {
+  const p = (window._compradores||[]).find(x=>x.id===id) || {};
+  const actual = p.cupo_compra_lps != null ? String(p.cupo_compra_lps) : "";
+  const v = prompt("Cupo de compra para " + (p.nombre||"este comprador") + " en Lempiras.\n\nDéjelo vacío para que use el cupo general del sitio.", actual);
+  if(v === null) return;
+  const valor = v.trim() === "" ? null : Number(v);
+  if(valor !== null && (!isFinite(valor) || valor < 0)) return alert("Escriba un número válido.");
+  const {error} = await db.from("perfiles").update({cupo_compra_lps: valor}).eq("id", id);
+  if(error) return alert("Error: " + error.message);
+  cargarCompradores();
+};
 
 window.toggleBloqueo = async (id, bloquear) => {
   await db.from("perfiles").update({bloqueado: bloquear}).eq("id", id);
@@ -1391,8 +1422,11 @@ async function cargarPagos(){
     $("#lista-pagos").innerHTML = "<p style='color:#7a7263'>No hay ventas pendientes de cobro o liquidación.</p>";
     return;
   }
+  const plazoHoras = Number((window._config && window._config.plazo_pago_horas) || 48);
   $("#lista-pagos").innerHTML = abiertas.map(f => {
     const estado = f.estado_pago || "pendiente";
+    const limite = new Date(new Date(f.created_at).getTime() + plazoHoras*3600*1000);
+    const vencida = ["pendiente","en_revision"].includes(estado) && Date.now() > limite.getTime();
     const vendedor = (window._vendedores||[]).find(v=>String(v.id_vendedor)===String(f.vendedor_id));
     const alVendedor = Number(f.monto_lps) - Number(f.comision_lps||0);
     const sig = SIGUIENTE_PASO[estado];
@@ -1403,6 +1437,7 @@ async function cargarPagos(){
         L ${Number(f.monto_lps).toLocaleString("es-HN")} · Comisión L ${Number(f.comision_lps||0).toLocaleString("es-HN")}<br>
         ${vendedor ? `Al vendedor ${vendedor.nombre_vendedor}: <b>L ${alVendedor.toLocaleString("es-HN")}</b><br>` : ""}
         <span class="pill ${estado==='liquidado'?'pub':estado==='pendiente'?'vend':'oculto'}">${ETIQUETA_PAGO[estado]}</span>
+        ${vencida ? `<span class="pill vend">VENCIDA</span>` : (["pendiente","en_revision"].includes(estado) ? `<span class="pill oculto">Vence ${limite.toLocaleString("es-HN",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"})}</span>` : "")}
         ${f.nota_pago ? `<br><span style="color:#7a7263">${f.nota_pago}</span>` : ""}
         <div class="contactos">
           ${f.comprador_telefono ? `<a href="tel:${f.comprador_telefono}" title="Llamar">📞</a><a href="https://wa.me/${f.comprador_telefono.replace(/\D/g,'')}" target="_blank" title="WhatsApp">💬</a>` : ""}

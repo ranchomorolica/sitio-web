@@ -83,7 +83,7 @@ Marcado con ✅ lo que Rancho Morolica ya tiene funcionando, ❌ lo que falta.
 ### Respaldo económico
 - ✅ Depósito de garantía por transferencia, con comprobante y confirmación manual
 - ✅ El depósito se abona a la compra o se devuelve
-- ❌ **Cupo máximo de compra por comprador** según su historial
+- ✅ **Cupo máximo de compra por comprador**, exigido por la base de datos
 - ❌ Depósito proporcional al valor de los lotes que quiere pujar
 
 ### Durante el remate
@@ -100,7 +100,7 @@ Marcado con ✅ lo que Rancho Morolica ya tiene funcionando, ❌ lo que falta.
 - ✅ Seguimiento del pago paso a paso, visible para el comprador
 - ✅ Subida del comprobante de transferencia desde su cuenta
 - ❌ CAI del SAR — sin eso la factura no tiene validez fiscal en Honduras
-- ❌ Plazo de pago explícito con consecuencia automática al vencerse
+- ✅ Plazo de pago explícito, con la venta marcada VENCIDA y el cupo bloqueado hasta que pague
 
 ---
 
@@ -127,7 +127,7 @@ Marcado con ✅ lo que Rancho Morolica ya tiene funcionando, ❌ lo que falta.
 - ✅ Crear la subasta, cargar lotes en orden, poner uno en vivo a la vez
 - ✅ Panel del rematador aparte para registrar pujas del ruedo
 - ✅ Cerrar como vendido o sin venta
-- ✅ Anular no está disponible — ❌ falta poder anular una puja mal registrada
+- ✅ Anular la última puja mal registrada, desde el panel y desde el ruedo
 
 ### Dinero
 - ✅ Cinco estados de la venta hasta la liquidación al consignatario
@@ -146,11 +146,10 @@ Marcado con ✅ lo que Rancho Morolica ya tiene funcionando, ❌ lo que falta.
    candado que usan todas las subastas colombianas y el que a usted le falta.
    Puede empezar simple: un PDF que el comprador imprime, firma, fotografía y
    sube junto con su identidad. Yo se lo puedo agregar al flujo de verificación.
-2. **Cupo máximo de compra por comprador.** Que la página no le deje pujar por
-   encima de cierto monto hasta que usted se lo amplíe a mano. Hoy alguien con
-   L10,000 de depósito puede adjudicarse L800,000.
-3. **Plazo de pago con consecuencia.** Defina 48 horas (el estándar colombiano) y
-   que la página marque sola las ventas vencidas.
+2. ~~**Cupo máximo de compra por comprador.**~~ — **ya construido.** Configurable
+   en general y por comprador; la base de datos rechaza la puja que lo pase.
+3. ~~**Plazo de pago con consecuencia.**~~ — **ya construido.** 48 horas por
+   defecto, ventas marcadas VENCIDA, y el cupo sigue ocupado hasta que pague.
 4. **CAI del SAR.** Sin eso sus facturas no son válidas fiscalmente.
 
 **Importante — hace que la subasta funcione mejor:**

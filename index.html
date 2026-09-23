@@ -1303,7 +1303,8 @@ function renderCuenta(){
         <div class="puja-msg" id="dep-msg"></div>
       </div>`;
   } else {
-    estadoHtml = `<div class="puja-msg ok">✅ Su cuenta está lista para pujar, publicar y participar. ¡Gracias!</div>`;
+    estadoHtml = `<div class="puja-msg ok">✅ Su cuenta está lista para pujar, publicar y participar. ¡Gracias!</div>
+      <div class="estado-info" id="cta-cupo" style="margin-top:10px"></div>`;
   }
 
   const avisoHtml = avisoCuenta
@@ -1322,6 +1323,7 @@ function renderCuenta(){
     </div>`;
   cargarMfaEstadoCuenta();
   cargarMisCompras();
+  cargarCupo();
 
   // Si en pantalla quedó el formulario de verificación, engancha
   // el guardado automático y recupera lo escrito antes.
@@ -1401,6 +1403,17 @@ window.subirFotoKyc = async (cual) => {
   }
 };
 
+/* --- Cupo de compra disponible --- */
+
+async function cargarCupo(){
+  const cont = document.getElementById("cta-cupo");
+  if(!cont || !sesionUsuario) return;
+  const {data, error} = await db.rpc("cupo_disponible", {p_comprador: sesionUsuario.id});
+  if(error || data == null){ cont.style.display = "none"; return; }
+  cont.innerHTML = `<b>Su cupo de compra disponible: ${fmtL(data)}</b>
+    <p style="font-size:.85rem">Es lo máximo que puede llegar a deber a la vez. Baja mientras va ganando lotes y sube cuando paga. Si necesita más, escríbanos.</p>`;
+}
+
 /* --- Mis compras: pagar por transferencia y seguir el estado --- */
 
 const ETIQUETA_PAGO = {
@@ -1415,10 +1428,14 @@ async function cargarMisCompras(){
     .eq("comprador_id", sesionUsuario.id).order("created_at",{ascending:false});
   const compras = data || [];
   if(!compras.length){ cont.innerHTML = ""; return; }
+  const plazoHoras = Number(configSitio.plazo_pago_horas || 48);
   cont.innerHTML = `<div class="mis-ofertas"><h4>Mis compras</h4>` + compras.map(f => {
     const estado = f.estado_pago || "pendiente";
+    const limite = new Date(new Date(f.created_at).getTime() + plazoHoras*3600*1000);
+    const vencida = ["pendiente","en_revision"].includes(estado) && Date.now() > limite.getTime();
     return `<div class="fila-oferta" style="display:block">
       <div>Factura #${f.numero} — <b>${fmtL(f.monto_lps)}</b> · ${ETIQUETA_PAGO[estado]}</div>
+      ${["pendiente","en_revision"].includes(estado) ? `<div style="font-size:.82rem;color:${vencida?"var(--rojo)":"#7a7263"};font-weight:${vencida?"700":"400"}">${vencida ? "⚠️ El plazo para pagar ya venció. Comuníquese con el rancho." : "Tiene plazo hasta el " + limite.toLocaleString("es-HN",{day:"numeric",month:"long",hour:"numeric",minute:"2-digit"})}</div>` : ""}
       ${estado === "pendiente" ? `
         <div style="margin-top:8px;font-size:.85rem;color:#5c554a">
           Deposite o transfiera <b>${fmtL(f.monto_lps)}</b> a:

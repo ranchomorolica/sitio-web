@@ -160,6 +160,7 @@ function render(){
     <label>Número/nombre del comprador presencial (opcional)</label>
     <input id="nombre-fisico" type="text" placeholder="Comprador #12">
     <button class="btn btn-f" id="btn-puja-fisica">Registrar puja física</button>
+    <button class="btn btn-gris" id="btn-anular" style="margin-top:10px">Anular última puja</button>
     <div class="msg" id="puja-msg"></div>
     <div class="historial" id="historial"></div>
   `;
@@ -175,6 +176,14 @@ function render(){
     if(error) msg("#puja-msg", error.message, "err");
     else msg("#puja-msg", "Puja registrada.", "ok");
     btn.disabled = false; btn.textContent = "Registrar puja física";
+  };
+
+  // Para cuando se teclea un monto equivocado o el comprador se
+  // retracta antes de que caiga el martillo.
+  $("#btn-anular").onclick = async () => {
+    if(!confirm("¿Anular la última puja?\n\nEl precio vuelve al que tenía antes.")) return;
+    const {error} = await db.rpc("anular_ultima_puja", {p_lote_id: loteVivo.id});
+    msg("#puja-msg", error ? error.message : "Puja anulada. El precio volvió al anterior.", error ? "err" : "ok");
   };
 }
 
